@@ -351,6 +351,7 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid #e6e8f0
   <main id="view"></main>
   <button class="fab" id="fab">🤖</button>
   <nav class="tabbar" id="tabbar"></nav>
+  <audio id="ttsPlayer" style="display:none" preload="auto"></audio>
   <div id="sheet"></div>
   <div class="center-timer" id="centerTimer">
     <div class="box">
@@ -839,6 +840,13 @@ function getCustomSkinSteps(){
 }
 function saveCustomSkinSteps(v){ HealthStore.save('customSkinSteps', v); }
 
+// ★ 自定义分类（从旧版导入的“穿着/需要报销/咪咪”等会保存在这里）
+function getCustomCats(type){
+  const v = LS.get('app_h_customCats', { expense:[], income:[] });
+  const arr = type === 'income' ? (v && v.income) : (v && v.expense);
+  return Array.isArray(arr) ? arr : [];
+}
+
 let PLAN_START;
 (function(){
   const s = LS.get('app_h_planStartDate', null);
@@ -848,7 +856,7 @@ let PLAN_START;
 function setPlanStart(date){
   if (!date) return;
   PLAN_START = new Date(localDateStr(date) + 'T00:00:00');
-  LS.set('app_h_planStartDate', localDateStr(date));
+  LS.set('app_h_planStartDate', localDateStr(PLAN_START));
 }
 function getOverrides(){ return LS.get('app_h_planOverrides', {}); }
 function setOverride(date, mode){
@@ -867,7 +875,6 @@ function getPlanDayInfo(date = new Date()){
 const BODY_DEFAULT = { height:165, weight:51.7, bodyFat:33, shoulder:38, neck:32, bust:86, underbust:74, waist:68, abdomen:78, hip:92, upperArm:27, forearm:23, wrist:15.5, thigh:52, calf:34, ankle:21, armLength:56, legLength:96, inseam:72, footLength:23.5, footWidth:9 };
 const body = { ...BODY_DEFAULT, ...HealthStore.load('body', {}) };
 
-// ★ 补剂库：完整的补剂清单（不随日期变化）
 const SUPP_LIB_DEFAULT = [
   { id:1, name:'复合维生素B', dose:'1 粒', time:'早餐后' },
   { id:2, name:'维生素D/E', dose:'1 粒', time:'早餐后' },
@@ -879,7 +886,6 @@ const SUPP_LIB_DEFAULT = [
 let suppLib = HealthStore.load('suppLib', SUPP_LIB_DEFAULT);
 function saveSuppLib(){ HealthStore.save('suppLib', suppLib); }
 
-// ★ 今日补剂：每天从补剂库复制一份，勾选一个删一个
 function getTodaySupps(){
   const key = 'app_h_todaySupps_' + todayStr();
   let arr = LS.get(key, null);
@@ -1044,12 +1050,16 @@ function parseTransactionText(text){
   EXPENSE_HINTS.forEach(re => { if (re.test(t)) expenseScore++; });
   let type = incomeScore > expenseScore ? 'income' : 'expense';
   let category = type === 'income' ? '其他收入' : '其他';
+  // 自定义分类优先匹配
+  const custom = getCustomCats(type);
+  for (const c of custom){ if (c && t.indexOf(c) >= 0){ category = c; return { type, amount, category, note: t }; } }
   const dict = type === 'income' ? INCOME_CATS : EXPENSE_CATS;
   for (const [cat, re] of dict) { if (re.test(t)) { category = cat; break; } }
   return { type, amount, category, note: t };
 }
 function getCatList(type){
   const base = (type === 'income' ? INCOME_CATS : EXPENSE_CATS).map(x => x[0]);
+  getCustomCats(type).forEach(c => { if (c && base.indexOf(c) < 0) base.push(c); });
   base.push(type === 'income' ? '其他收入' : '其他');
   return base;
 }
@@ -1069,15 +1079,27 @@ function exportCsv(){
   const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
   const rangeLabel = { month:'本月', lastMonth:'上月', '3months':'近3月', all:'全部' }[state.exportRange];
   const filename = `账单_${rangeLabel}_${todayStr()}.csv`;
-  const blob = new Blob(['\ufeff' + csv], { type:'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
-  toast('已导出：' + filename);
+  saveTextFile(csv, filename, 'text/csv');
 }
 
-// ★ CSV 导入：用动态创建的 input，确保 WebView 能触发文件选择器
+// ★ 统一的文本保存：优先原生，其次 Blob 下载
+function saveTextFile(content, filename, mime){
+  if (window.AndroidFile && typeof AndroidFile.saveFile === 'function'){
+    try { AndroidFile.saveFile(String(content), filename, mime || 'text/plain'); return; } catch(e){ console.error(e); }
+  }
+  try {
+    const blob = new Blob(['\ufeff' + content], { type: (mime||'text/plain') + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
+    toast('已导出：' + filename);
+  } catch(err){ toast('导出失败：' + err.message); }
+}
+// 原生保存回调
+window.__onFileSaved = function(filename){ toast('已保存：' + filename); };
+window.__onFileSaveError = function(msg){ toast('保存失败：' + msg); };
+
 function importTransactionsCsv(){
   const input = document.createElement('input');
   input.type = 'file';
@@ -1126,6 +1148,8 @@ function doImportCsv(file){
       const idxNote   = header.findIndex(h => h.includes('备注') || /note/i.test(h));
       if (idxDate < 0 || idxAmount < 0) { toast('CSV 需至少含"日期"和"金额"列'); return; }
       const existing = new Set(transactions.map(t => `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note}`));
+      const customExpense = getCustomCats('expense').slice();
+      const customIncome = getCustomCats('income').slice();
       let added = 0, skipped = 0;
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvLine(lines[i]);
@@ -1135,13 +1159,20 @@ function doImportCsv(file){
         const time = idxTime >= 0 && (cols[idxTime] || '').trim() ? (cols[idxTime] || '').trim() : fmtTime(new Date());
         const typeStr = idxType >= 0 ? (cols[idxType] || '').trim() : '支出';
         const type = (typeStr === '收入' || typeStr === 'income') ? 'income' : 'expense';
-        const category = idxCat >= 0 && (cols[idxCat] || '').trim() ? (cols[idxCat] || '').trim() : (type === 'income' ? '其他收入' : '其他');
+        let category = idxCat >= 0 && (cols[idxCat] || '').trim() ? (cols[idxCat] || '').trim() : (type === 'income' ? '其他收入' : '其他');
         const note = idxNote >= 0 ? (cols[idxNote] || '').trim() : '';
+        // 保留自定义分类
+        const known = getCatList(type);
+        if (known.indexOf(category) < 0){
+          if (type === 'income'){ if (customIncome.indexOf(category) < 0) customIncome.push(category); }
+          else { if (customExpense.indexOf(category) < 0) customExpense.push(category); }
+        }
         const sig = `${date}|${time}|${amount}|${type}|${category}|${note}`;
         if (existing.has(sig)) { skipped++; continue; }
         transactions.unshift({ id: Date.now() + Math.floor(Math.random()*1000) + i, date, time, amount, category, note, type });
         existing.add(sig); added++;
       }
+      LS.set('app_h_customCats', { expense: customExpense, income: customIncome });
       if (added > 0){
         state.transactions = transactions;
         LS.set('app_h_transactions', transactions);
@@ -1179,7 +1210,7 @@ const StorySource = {
   async fetchEnsentence(){ const d = await tianapiFetch(`https://apis.tianapi.com/ensentence/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); return { title: '英语一句话', author: '天聚数行', preview: d.result.en, cn: d.result.zh || '', url: null, source:'tianapi' }; },
   async fetchEnmaxim(){ const d = await tianapiFetch(`https://apis.tianapi.com/enmaxim/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); return { title: '英语格言', author: '天聚数行', preview: d.result.en, cn: d.result.zh || '', url: null, source:'tianapi' }; }
 };
-const YiyanSource = { async fetch(){ const d = await fetchJson('https://v1.hitokoto.cn/', 5000); if (!d.hitokoto) throw new Error('无数据'); return { text: d.hitokoto, from: d.from || d.from_who || '' }; } };
+const YiyanSource = { async fetch(){ const d = await fetchJson('https://v1.hitokoto.cn/', 5000); if (!d.hitokoto) throw new Error('无数据'); return { text: d.hitokoto, from: d.from || d.from_from_who || '' }; } };
 const NewsSource = {
   async fetchAll(){ return { results: await Promise.all(NEWS_SOURCES.map(async (src) => { try { const list = await raceTimeout(this.fetchOne(src.id), 15000); return { ok:true, id: src.id, label: src.label, icon: src.icon, list: (list || []).slice(0, src.max) }; }catch(e){ return { ok:false, id: src.id, label: src.label, icon: src.icon, error: friendlyErr(e) }; } })), total: NEWS_SOURCES.length }; },
   async fetchOne(id){ const map = { generalnews:'generalnews', caijing:'caijing', bulletin:'bulletin', woman:'woman', networkhot:'networkhot' }; const d = await tianapiFetch(`https://apis.tianapi.com/${map[id]}/index?key=${TIANAPI}&num=10`, 8000); if (d.code !== 200) throw new Error('code='+d.code); const list = extractList(d.result); if (!list.length) throw new Error('无内容'); return list.map((n, i) => ({ t: n.title || '', d: n.description || n.digest || '', url: n.url || '', time: n.ctime || '', rank: i+1 })); }
@@ -1221,9 +1252,13 @@ async function fetchWeather(){
   }
 }
 
-// ★★★ 语音：优先原生 AndroidTTS，退化到有道在线 TTS ★★★
+/* ================================================================
+   ★★★ TTS：原生优先 → speechSynthesis → 有道在线兜底 ★★★
+   ================================================================ */
 let _currentSpeakBtn = null;
 let _speakSeq = 0;
+let _ttsSafetyTimer = null;
+
 function stopSpeak(){
   try { if (window.AndroidTTS && typeof AndroidTTS.stop === 'function') AndroidTTS.stop(); } catch(e){}
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e){}
@@ -1231,7 +1266,29 @@ function stopSpeak(){
   document.querySelectorAll('.playing').forEach(b => b.classList.remove('playing'));
   _currentSpeakBtn = null;
   _speakSeq++;
+  if (_ttsSafetyTimer){ clearTimeout(_ttsSafetyTimer); _ttsSafetyTimer = null; }
 }
+
+// 原生 TTS 完成回调
+window.__onTTSDone = function(uid){
+  document.querySelectorAll('.playing').forEach(b => b.classList.remove('playing'));
+  _currentSpeakBtn = null;
+};
+window.__onTTSError = function(uid, msg){
+  window.__onTTSDone(uid);
+  if (msg) console.warn('TTS error:', msg);
+};
+
+function markPlaying(btn, seq){
+  if (!btn) return;
+  btn.classList.add('playing');
+  _currentSpeakBtn = btn;
+  if (_ttsSafetyTimer) clearTimeout(_ttsSafetyTimer);
+  _ttsSafetyTimer = setTimeout(() => {
+    if (seq === _speakSeq){ document.querySelectorAll('.playing').forEach(b => b.classList.remove('playing')); _currentSpeakBtn = null; }
+  }, 60000);
+}
+
 function toggleSpeak(text, lang, btn){
   if (!text) { toast('没有内容可朗读'); return; }
   const wasPlaying = btn && btn.classList.contains('playing');
@@ -1240,43 +1297,49 @@ function toggleSpeak(text, lang, btn){
 
   const langStr = (lang || 'en-US');
   const seq = ++_speakSeq;
-  if (btn) { btn.classList.add('playing'); _currentSpeakBtn = btn; }
+  const uid = 'u' + seq + '_' + Date.now();
+  const trimmed = String(text).slice(0, 1500);
 
-  // ① 优先原生 Android TTS
+  // ① 原生 Android TTS —— 最稳，离线可用
   if (window.AndroidTTS && typeof AndroidTTS.speak === 'function'){
     try {
-      AndroidTTS.speak(String(text), langStr);
-      // 估算时长后自动取消高亮（原生没有 end 回调）
-      const ms = Math.max(1500, Math.min(30000, String(text).length * 180));
-      setTimeout(() => {
-        if (seq === _speakSeq && _currentSpeakBtn) {
-          _currentSpeakBtn.classList.remove('playing');
-          _currentSpeakBtn = null;
-        }
-      }, ms);
+      markPlaying(btn, seq);
+      AndroidTTS.speak(trimmed, langStr, uid);
       return;
     } catch(e){ console.error('原生 TTS 失败', e); }
   }
 
-  // ② 退化到有道在线 TTS（Android WebView 不支持 speechSynthesis）
+  // ② 浏览器 speechSynthesis
+  if (typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined'){
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(trimmed);
+      u.lang = langStr;
+      u.rate = 0.95;
+      u.onend = () => { if (seq === _speakSeq){ document.querySelectorAll('.playing').forEach(b => b.classList.remove('playing')); _currentSpeakBtn = null; } };
+      u.onerror = u.onend;
+      markPlaying(btn, seq);
+      speechSynthesis.speak(u);
+      return;
+    } catch(e){ console.error('speechSynthesis 失败', e); }
+  }
+
+  // ③ 有道在线 TTS 兜底
   const player = document.getElementById('ttsPlayer');
   if (!player) { toast('朗读失败：没有音频播放器'); return; }
-  const isZh = langStr.startsWith('zh');
-  const trimmed = String(text).slice(0, 800);
+  const isZh = langStr.indexOf('zh') === 0;
   const url = isZh
-    ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed)}&le=zh`
-    : `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed)}&type=2`;
-  player.src = url;
-  const cleanup = () => {
-    if (seq !== _speakSeq) return;
-    if (_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing');
-    _currentSpeakBtn = null;
-  };
+    ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed.slice(0,800))}&le=zh`
+    : `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed.slice(0,800))}&type=2`;
+  markPlaying(btn, seq);
+  const cleanup = () => { if (seq !== _speakSeq) return; if (_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing'); _currentSpeakBtn = null; };
   player.onended = cleanup;
   player.onerror = () => { cleanup(); toast('朗读失败，请检查网络'); };
+  player.src = url;
   const p = player.play();
   if (p && p.catch) p.catch(() => { cleanup(); toast('朗读被拦截，请再点一次'); });
 }
+
 function copyText(text){
   return new Promise(resolve => {
     if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(()=>resolve(true)).catch(()=>resolve(false)); return; }
@@ -1405,7 +1468,6 @@ function homeView(){
   let sportText = plan.label;
   if (ov && ovMap[ov]) sportText = ovMap[ov];
 
-  // ★ 是否显示"吃蛋白粉"：正常/游泳/减量时都显示
   const showProtein = (!ov) || ov === 'swim' || ov === 'reduced';
 
   const fixedItems = [
@@ -1420,7 +1482,6 @@ function homeView(){
     { time:'22:30', text:'睡前 90/90 呼吸', checkKey: `home_${t}_breathe` }
   ];
 
-  // ★ 插入"吃蛋白粉"（在运动之后）
   if (showProtein){
     fixedItems.splice(7, 0, {
       time:'20:30',
@@ -1432,7 +1493,6 @@ function homeView(){
     });
   }
 
-  // 用户手动创建的待办
   const todoItems = manualTodos.map(mt => ({
     time: mt.time || '99:99',
     text: mt.title,
@@ -1451,7 +1511,6 @@ function homeView(){
     const badge = it.badge ? `<span class="home-tl-badge">${it.badge}</span>` : (it.isTodo ? `<span class="home-tl-badge" style="color:#4A9EFF;background:#EAF3FF">代办</span>` : '');
     const arrow = it.action ? `<span class="home-tl-arrow">›</span>` : '';
     const sub = it.sub ? `<span class="sub">${esc(it.sub)}</span>` : '';
-    // ★ 时间线圆圈：手动待办走 data-toggle-todo，系统项走 data-check-key
     const checkHtml = it.manualPayload
       ? `<span class="check ${done?'done':''}" data-toggle-todo="${it.manualPayload}"></span>`
       : `<span class="check ${done?'done':''}" data-check-key="${it.checkKey}"></span>`;
@@ -1575,8 +1634,11 @@ function wordCard(w, i, isDone, isDoneToday){
       <div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="word-big" style="${isDone?'text-decoration:line-through;color:#aab0c0;':''}">${esc(w.w)}</span>${w.pos?`<span style="font-size:11px;color:var(--brand);background:#eef0ff;padding:2px 7px;border-radius:6px;font-weight:700;">${esc(w.pos)}</span>`:''}${isDoneToday && !isDone?'<span style="font-size:10.5px;color:#047857;background:#ecfdf5;padding:1px 6px;border-radius:5px;font-weight:650;">今日</span>':''}</div><div class="word-ph" style="${isDone?'text-decoration:line-through;':''}">${esc(w.ph||'')}</div></div>
     </div>
     <div style="font-size:14px;color:#333a4d;margin-top:10px;font-weight:600;line-height:1.55;${isDone?'text-decoration:line-through;color:#aab0c0;':''}">${esc(w.cn||'')}</div>
-    ${w.scene?`<div style="margin-top:11px;padding-top:11px;border-top:1px dashed #eceef4;"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#2b3244;line-height:1.55;"><span style="flex:1">${esc(w.scene)}</span><button style="border:0;background:#f3f4fa;width:26px;height:26px;border-radius:9px;font-size:12px;cursor:pointer;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US">🔊</button></div><div style="font-size:12.5px;color:var(--sub);margin-top:5px;">${esc(w.sceneCn||'')}</div></div>`:''}
-    <button style="position:absolute;top:14px;right:14px;border:0;background:#f3f4fa;width:34px;height:34px;border-radius:11px;font-size:15px;cursor:pointer;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US">🔊</button>
+    ${w.scene?`<div style="margin-top:11px;padding-top:11px;border-top:1px dashed #eceef4;"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#2b3244;line-height:1.55;"><span style="flex:1">${esc(w.scene)}</span><button style="border:0;background:#f3f4fa;width:30px;height:30px;border-radius:9px;font-size:13px;cursor:pointer;flex:none;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" title="朗读例句">🔊</button></div><div style="font-size:12.5px;color:var(--sub);margin-top:5px;">${esc(w.sceneCn||'')}</div></div>`:''}
+    <div style="position:absolute;top:14px;right:14px;display:flex;gap:6px;">
+      <button style="border:0;background:#eef0ff;color:var(--brand);width:34px;height:34px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US" title="朗读单词">🔊</button>
+      ${w.scene?`<button style="border:0;background:#ecfdf5;color:#047857;width:34px;height:34px;border-radius:11px;font-size:13px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" title="朗读例句">📢</button>`:''}
+    </div>
   </div>`;
 }
 function valveSection(){
@@ -1841,7 +1903,6 @@ function renderTxEditor(){
   if (!area) return;
   if (!p){ area.innerHTML = ''; return; }
   const cats = getCatList(p.type);
-  // ★ 关键：按钮都带有 data-act，事件由 view 上的委托监听处理
   area.innerHTML = `<div class="tip-card" style="background:linear-gradient(135deg,#eef0ff,#f6f0ff);border-color:#e2e5ff;">
     <div style="font-size:12px;font-weight:700;color:var(--brand);margin-bottom:8px;">识别结果 · 请确认</div>
     <div style="font-size:14px;color:#2b3244;margin-bottom:10px;">"${esc(p.note||'')}"</div>
@@ -1952,7 +2013,6 @@ function closetFreePane(){
   return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">搭配台</div>${slotHTML}</div>`;
 }
 
-// ★ 美丽修行：新增补剂库 tab
 function careSection(){
   const sub = state.careSub || 'skin';
   const subs = [{ id:'skin', label:'护肤' },{ id:'supp', label:'补剂' },{ id:'suppLib', label:'补剂库' }];
@@ -1986,7 +2046,6 @@ function careSkinPane(){
   return `<div class="card" style="background:linear-gradient(135deg,var(--pink),var(--pink2));color:#fff;border:0;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:8px;">${s.icon} 皮肤状态</div><div style="font-size:19px;font-weight:750;margin-bottom:8px;">${s.label}</div><div style="font-size:13px;opacity:.92;line-height:1.7;">${esc(s.desc)}</div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">切换状态</div><div class="opt-list">${Object.values(SKIN_STATES).map(v => `<div class="opt-item ${skinState === v.key ? 'active' : ''}" data-act="setSkin" data-skin="${v.key}"><span style="font-size:16px;">${v.icon}</span><span class="oi-lb">${v.label}</span><span class="oi-ck">${skinState === v.key ? '✓' : ''}</span></div>`).join('')}</div></div><div class="profile-card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">我的肤质档案</div>${[{ k:'skinType', label:'肤质', opts:['干性','油性','混合性','中性'] },{ k:'oiliness', label:'油度', opts:['低','中','高'] },{ k:'sensitivity', label:'敏感度', opts:['低','中','高'] },{ k:'aging', label:'老化度', opts:['低','中','高'] }].map(row => `<div class="profile-row"><span class="pr-lb">${row.label}</span><div class="pr-opts">${row.opts.map(o => `<span class="pr-opt ${state.profileDraft[row.k] === o ? 'active' : ''}" data-act="setProfileDraft" data-key="${row.k}" data-val="${o}">${o}</span>`).join('')}</div></div>`).join('')}<div class="row-between" style="margin-top:10px;padding-top:10px;border-top:1px solid #F0F2F7;"><span style="font-size:11.5px;color:var(--hot);${profileChanged ? '' : 'visibility:hidden'}">⚠️ 有未保存的修改</span><button class="btn primary" data-act="confirmProfile" ${profileChanged ? '' : 'disabled style="opacity:.4"'} style="padding:9px 20px;font-size:13px;">确定更改</button></div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">💡 今日建议 <span class="muted" style="color:var(--sub);font-size:11.5px">${dayNames[day-1]}</span></div><p class="tip">${esc(s.tips)}</p>${skinState === 'stable' ? `<div class="tip-card" style="margin-top:10px;background:#EAF3FF;border-color:#BFDBFE;color:#1E40AF;border-style:solid;">🔄 今天${dayNames[day-1]}：${esc(dayNote)}</div>` : ''}</div><div class="card">${renderSteps('☀️ 早间流程', steps.morning, 'morning')}</div><div class="card">${renderSteps('🌙 晚间流程', steps.night, 'night')}</div>`;
 }
 
-// ★ 今日补剂：只显示今天的，勾选一个就从今日列表删除
 function careSuppPane(){
   const todaySupps = getTodaySupps();
   const suppHtml = todaySupps.length ? todaySupps.map(s => {
@@ -1995,7 +2054,6 @@ function careSuppPane(){
   return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">今日补剂 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${todaySupps.length} 项 · 勾选即消除</span></div><p style="font-size:11.5px;color:var(--sub);margin:0 0 10px;line-height:1.6;">每天早上会自动从「补剂库」复制一份清单。勾选已服用的补剂，就会从今天列表里删除。</p>${suppHtml}</div><div class="card" style="background:#F7F8FC;"><button class="btn-ghost-h" data-act="careSub" data-sub="suppLib" style="background:var(--pink-soft);color:var(--pink)">📚 去补剂库管理</button></div>`;
 }
 
-// ★ 补剂库：所有补剂清单，可增删
 function careSuppLibPane(){
   const list = suppLib.map(s => {
     return `<div class="supp"><div class="e">💊</div><div class="body"><div class="n">${esc(s.name)}</div><div class="s">${esc(s.dose||'')} · ${esc(s.time||'')}</div></div><button class="del" data-act="delSuppLib" data-id="${s.id}">✕</button></div>`;
@@ -2088,7 +2146,7 @@ function meView(){
     <div style="display:flex;align-items:baseline;gap:8px;padding:10px 4px;"><span style="font-size:22px;font-weight:850;color:var(--hot);min-width:52px;">${transactions.length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">笔记账记录</span></div>
   </div>
   <div class="card"><div class="sec-title" style="margin:0 0 12px;">🤖 AI 助手配置</div><select id="aiProvider" style="margin-bottom:10px;"><option value="none" ${AI.provider==='none'?'selected':''}>不启用</option><option value="deepseek" ${AI.provider==='deepseek'?'selected':''}>DeepSeek</option><option value="qwen" ${AI.provider==='qwen'?'selected':''}>通义千问</option><option value="zhipu" ${AI.provider==='zhipu'?'selected':''}>智谱 GLM</option></select><input type="password" id="aiKey" placeholder="sk-..." value="${esc(AI.apiKey)}"><button class="btn primary wide" style="margin-top:14px" data-act="saveAI">保存配置</button></div>
-  <div class="card"><div class="sec-title" style="margin:0 0 12px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="importData">📥 导入（JSON）</button></div>
+  <div class="card"><div class="sec-title" style="margin:0 0 12px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON，含全部数据）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="importData">📥 导入（JSON，支持旧版备份）</button><p class="tip" style="margin-top:12px;font-size:11.5px;color:var(--sub);line-height:1.7">支持导入旧版 App 备份（health-life / daily-health 格式），以及纯账本 JSON / CSV。</p></div>
   <div class="card" style="border:1px solid #fee2e2;"><div class="sec-title" style="margin:0 0 6px;color:#dc2626;">危险操作</div><button class="btn danger wide" data-act="clearData">🗑 清空本设备数据</button></div>
   <div class="foot-note">数据保存在本设备 · 请定期备份</div>`;
 }
@@ -2159,7 +2217,7 @@ function renderReviewSheet(){
   const q = isEn ? (item.w||item.q) : (item.q||item.w);
   const ref = isEn ? item.cn : (item.a + '\n\n要点：' + (item.key||''));
   const titleText = r.type === 'weekly' ? '周测' : (r.type === 'alltest' ? '总测' : (isEn ? '英语单词' : '专业'));
-  const body = `<div class="sheet-head"><div class="sheet-emoji">${isEn?'🔤':'⚙️'}</div><div style="flex:1;min-width:0;"><h2 style="font-size:16px;">${titleText}复习</h2><div class="muted">第 ${r.index+1} / ${r.list.length} 题</div></div></div><div style="background:#f8f9fd;border-radius:14px;padding:16px;margin:14px 0;">${isEn?`<div style="font-size:28px;font-weight:850;color:#2b3244;margin-bottom:8px;">${esc(q)}</div><button class="btn ghost" data-act="reviewSpeak" data-text="${esc(q)}" data-lang="en-US">🔊 再听一遍</button>`:`<div style="font-size:15.5px;font-weight:750;line-height:1.5;">${esc(q)}</div>`}</div><div style="font-size:13px;font-weight:700;color:#3b4256;margin-bottom:8px;">${isEn?'中文翻译':'你的答案'}</div><textarea class="answer-input" id="reviewAnswer" placeholder="${isEn?'写出中文意思…':'写下你的答案…'}" ${r.judged?'readonly':''}>${esc(r.answer||'')}</textarea>${r.judged && r.result?`<div class="score-card" style="${r.result.correct?'':'background:#fff7ed;border-color:#fdba74;'}"><div class="score-head"><div class="score-num" style="${r.result.correct?'':'color:#c2410c;'}">${r.result.accuracy||r.result.score||0}<span style="font-size:14px;opacity:.55;">%</span></div><div class="score-label" style="${r.result.correct?'':'color:#c2410c;'}">${r.result.correct?'✓ 正确':'✗ 再想想'}</div></div>${r.result.feedback?`<div class="score-row"><div class="score-row-title">点评</div><div class="score-extra">${esc(r.result.feedback)}</div></div>`:''}${!r.result.correct?`<div class="score-row"><div class="score-row-title">参考答案</div><div class="score-extra">${esc(ref)}</div></div>`:''}</div>`:''}<div style="margin-top:16px;">${r.loading?`<button class="btn primary wide" disabled>⏳ 判定中…</button>`:r.judged?`<div class="rate-row"><button class="rate-btn again" data-act="rate" data-rating="again">完全不会</button><button class="rate-btn hard" data-act="rate" data-rating="hard">模糊</button><button class="rate-btn good" data-act="rate" data-rating="good">熟练</button></div>`:`<button class="btn primary wide" data-act="reviewSubmit">提交答案</button>`}</div>`;
+  const body = `<div class="sheet-head"><div class="sheet-emoji">${isEn?'🔤':'⚙️'}</div><div style="flex:1;min-width:0;"><h2 style="font-size:16px;">${titleText}复习</h2><div class="muted">第 ${r.index+1} / ${r.list.length} 题</div></div></div><div style="background:#f8f9fd;border-radius:14px;padding:16px;margin:14px 0;">${isEn?`<div style="font-size:28px;font-weight:850;color:#2b3244;margin-bottom:8px;">${esc(q)}</div><button class="btn ghost" data-act="reviewSpeak" data-text="${esc(q)}" data-lang="en-US">🔊 听发音</button>`:`<div style="font-size:15.5px;font-weight:750;line-height:1.5;">${esc(q)}</div>`}</div><div style="font-size:13px;font-weight:700;color:#3b4256;margin-bottom:8px;">${isEn?'中文翻译':'你的答案'}</div><textarea class="answer-input" id="reviewAnswer" placeholder="${isEn?'写出中文意思…':'写下你的答案…'}" ${r.judged?'readonly':''}>${esc(r.answer||'')}</textarea>${r.judged && r.result?`<div class="score-card" style="${r.result.correct?'':'background:#fff7ed;border-color:#fdba74;'}"><div class="score-head"><div class="score-num" style="${r.result.correct?'':'color:#c2410c;'}">${r.result.accuracy||r.result.score||0}<span style="font-size:14px;opacity:.55;">%</span></div><div class="score-label" style="${r.result.correct?'':'color:#c2410c;'}">${r.result.correct?'✓ 正确':'✗ 再想想'}</div></div>${r.result.feedback?`<div class="score-row"><div class="score-row-title">点评</div><div class="score-extra">${esc(r.result.feedback)}</div></div>`:''}${!r.result.correct?`<div class="score-row"><div class="score-row-title">参考答案</div><div class="score-extra">${esc(ref)}</div></div>`:''}</div>`:''}<div style="margin-top:16px;">${r.loading?`<button class="btn primary wide" disabled>⏳ 判定中…</button>`:r.judged?`<div class="rate-row"><button class="rate-btn again" data-act="rate" data-rating="again">完全不会</button><button class="rate-btn hard" data-act="rate" data-rating="hard">模糊</button><button class="rate-btn good" data-act="rate" data-rating="good">熟练</button></div>`:`<button class="btn primary wide" data-act="reviewSubmit">提交答案</button>`}</div>`;
   updateSheet(body);
 }
 async function submitReviewAnswer(){
@@ -2241,32 +2299,36 @@ async function sendAIMessage(){
   state.aiLoading = false; openAIAssistant();
 }
 
-function doExport(){
-  const data = {
-    app:'daily-health', version:1, exportedAt:new Date().toISOString(),
-    learn: { learned: LearnStore.getLearned(), wordDeckMap: LS.get('word-deck-map', {}), schedule: { english: LearnStore.getSchedule('english'), work: LearnStore.getSchedule('work') }, wrongBook: LearnStore.getWrongBook(), streak: LearnStore.getStreak(), aiHistory: LearnStore.getAIHistory() },
-    health: { body, suppLib, profile, skinState, transactions, clothes, skinProducts, planStart: localDateStr(PLAN_START), overrides: getOverrides(), manualTodos: getManualTodos(), todoStatus: getTodoStatusMap(), sportSessions: getSportSessions(), bodyHistory: getBodyHistory() }
-  };
-  const json = JSON.stringify(data, null, 2);
-  const filename = `日常健康备份_${todayStr()}.json`;
-  if (window.AndroidFile && typeof AndroidFile.saveFile === 'function'){
-    try { AndroidFile.saveFile(json, filename, 'application/json'); toast('已保存：' + filename); return; } catch(e){}
-  }
+/* ================================================================
+   ★★★ 导出 / 导入 ★★★
+   ================================================================ */
+function collectAllKV(){
+  const kv = {};
   try {
-    const blob = new Blob([json], { type:'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
-    toast('已导出：' + filename);
-  } catch(err){ toast('导出失败：' + err.message); }
+    Object.keys(localStorage).forEach(k => {
+      if (k.indexOf('cache:') === 0) return;          // 跳过可再生的缓存
+      kv[k] = localStorage.getItem(k);
+    });
+  } catch(e){}
+  return kv;
 }
 
-// ★ JSON 导入：动态创建 input，兼容 WebView；同时兼容旧版数据格式
+function doExport(){
+  const data = {
+    app: 'daily-health',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    kv: collectAllKV()          // ★ 全量无损导出
+  };
+  const json = JSON.stringify(data, null, 2);
+  const filename = `日常健康备份_${todayStr().replace(/-/g,'')}_${pad(new Date().getHours())}${pad(new Date().getMinutes())}.json`;
+  saveTextFile(json, filename, 'application/json');
+}
+
 function doImport(){
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json,application/json,text/plain,*/*';
+  input.accept = '.json,.csv,application/json,text/csv,text/plain,*/*';
   input.style.position = 'fixed';
   input.style.left = '-9999px';
   input.style.top = '-9999px';
@@ -2274,75 +2336,239 @@ function doImport(){
   input.onchange = e => {
     const f = e.target.files[0];
     if (!f) return;
-    if (!confirm('导入会覆盖当前数据，确定继续？')) return;
+    if (!confirm('导入会覆盖/合并当前数据，确定继续？')) return;
     const reader = new FileReader();
-    reader.onload = ev => { try { doImportConfirm(ev.target.result); } catch(err){ toast('文件读取失败：' + err.message); } };
+    reader.onload = ev => { try { doImportConfirm(ev.target.result, f.name); } catch(err){ toast('文件读取失败：' + err.message); } };
     reader.readAsText(f, 'UTF-8');
   };
   document.body.appendChild(input);
   input.click();
   setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
 }
-function doImportConfirm(text){
-  try {
-    const d = JSON.parse(text);
-    let imported = 0;
 
-    // ---- 兼容旧格式：顶层直接就是账本数组 ----
-    if (Array.isArray(d)){
-      const list = d.filter(x => x && (x.amount !== undefined || x.date)).map(x => ({
-        id: x.id || (Date.now() + Math.floor(Math.random()*1000)),
-        date: x.date || todayStr(),
-        time: x.time || '12:00',
-        amount: parseFloat(x.amount) || 0,
-        type: (x.type === '收入' || x.type === 'income') ? 'income' : 'expense',
-        category: x.category || (x.type === 'income' ? '其他收入' : '其他'),
-        note: x.note || x.desc || ''
-      }));
-      transactions = [...list, ...transactions];
-      state.transactions = transactions;
-      LS.set('app_h_transactions', transactions);
-      toast(`✓ 导入 ${list.length} 条账本`);
-      setTimeout(() => location.reload(), 700);
-      return;
+// ★ 字符串/JSON 双解
+function coerce(v){
+  if (v === null || v === undefined) return v;
+  if (typeof v !== 'string') return v;
+  let s = v.trim();
+  for (let i = 0; i < 3; i++){
+    if (!s) return s;
+    const looksJson = (s[0] === '{' && s[s.length-1] === '}') || (s[0] === '[' && s[s.length-1] === ']')
+      || (s[0] === '"' && s[s.length-1] === '"') || s === 'true' || s === 'false' || /^-?\d+(\.\d+)?$/.test(s);
+    if (!looksJson) break;
+    try {
+      const p = JSON.parse(s);
+      if (typeof p === 'string'){ s = p; continue; }
+      return p;
+    } catch(e){ break; }
+  }
+  return s;
+}
+
+// ★ 旧版备份键名 → 新版键名
+const LEGACY_KEY_MAP = {
+  app_body: 'app_h_body',
+  app_setsDone: 'app_h_setsDone',
+  app_supplements: 'app_h_suppLib',
+  app_profile: 'app_h_profile',
+  app_skinState: 'app_h_skinState',
+  app_skinStateDate: 'app_h_skinStateDate',
+  app_selectedDate: 'app_h_selectedDate',
+  app_calYear: 'app_h_calYear',
+  app_calMonth: 'app_h_calMonth',
+  app_bodyHistory: 'app_h_bodyHistory',
+  app_lastWeather: 'app_h_lastWeather',
+  app_customCats: 'app_h_customCats',
+  app_libFilter: 'app_h_libFilter',
+  dailyChecks: 'app_h_dailyChecks',
+  planStartDate: 'app_h_planStartDate',
+  planOverrides: 'app_h_planOverrides',
+  todoStatus: 'app_h_todoStatus',
+  calendarManual: 'app_h_calendarManual',
+  sportSessions: 'app_h_sportSessions',
+  transactions: 'app_h_transactions',
+  clothes: 'app_h_clothes',
+  skinProducts: 'app_h_skinProducts',
+  last_sit_reminder: 'app_h_lastWalkReminder',
+  lastWeather: 'app_h_lastWeather'
+};
+
+// ★ 从 CSV 文本解析账本
+function parseLedgerCsv(raw){
+  const lines = String(raw).replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const parseLine = (line) => {
+    const out = []; let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++){
+      const ch = line[i];
+      if (inQuote){
+        if (ch === '"' && line[i+1] === '"'){ cur += '"'; i++; }
+        else if (ch === '"') inQuote = false;
+        else cur += ch;
+      } else {
+        if (ch === '"') inQuote = true;
+        else if (ch === ','){ out.push(cur); cur = ''; }
+        else cur += ch;
+      }
     }
+    out.push(cur); return out;
+  };
+  const header = parseLine(lines[0]);
+  const idxDate   = header.findIndex(h => h.includes('日期') || /date/i.test(h));
+  const idxTime   = header.findIndex(h => h.includes('时间') || /time/i.test(h));
+  const idxAmount = header.findIndex(h => h.includes('金额') || /amount/i.test(h));
+  const idxType   = header.findIndex(h => h.includes('类型') || /type/i.test(h));
+  const idxCat    = header.findIndex(h => h.includes('分类') || /category/i.test(h));
+  const idxNote   = header.findIndex(h => h.includes('备注') || /note/i.test(h));
+  if (idxDate < 0 || idxAmount < 0) return [];
+  const rows = [];
+  for (let i = 1; i < lines.length; i++){
+    const cols = parseLine(lines[i]);
+    const date = (cols[idxDate] || '').trim();
+    const amount = parseFloat((cols[idxAmount] || '').trim());
+    if (!date || isNaN(amount)) continue;
+    const time = idxTime >= 0 && (cols[idxTime] || '').trim() ? (cols[idxTime] || '').trim() : '12:00';
+    const typeStr = idxType >= 0 ? (cols[idxType] || '').trim() : '支出';
+    const type = (typeStr === '收入' || typeStr === 'income') ? 'income' : 'expense';
+    const category = idxCat >= 0 && (cols[idxCat] || '').trim() ? (cols[idxCat] || '').trim() : (type === 'income' ? '其他收入' : '其他');
+    const note = idxNote >= 0 ? (cols[idxNote] || '').trim() : '';
+    rows.push({ id: Date.now() + Math.floor(Math.random()*100000) + i, date, time, amount, type, category, note });
+  }
+  return rows;
+}
 
-    // ---- 新版格式 ----
+function doImportConfirm(text, fileName){
+  const raw = String(text).replace(/^\ufeff/, '');
+  const trimmed = raw.trim();
+
+  // ===== 情况 0：CSV 文件 → 直接走账本导入 =====
+  if ((fileName && /\.csv$/i.test(fileName)) || (trimmed.indexOf('日期') === 0 || trimmed.indexOf('日期,') >= 0)){
+    const rows = parseLedgerCsv(raw);
+    if (!rows.length){ toast('CSV 未解析出有效记录'); return; }
+    const existing = new Set(transactions.map(t => `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note}`));
+    const customExpense = getCustomCats('expense').slice();
+    const customIncome = getCustomCats('income').slice();
+    let added = 0;
+    rows.forEach(r => {
+      const known = getCatList(r.type);
+      if (known.indexOf(r.category) < 0){
+        if (r.type === 'income'){ if (customIncome.indexOf(r.category) < 0) customIncome.push(r.category); }
+        else { if (customExpense.indexOf(r.category) < 0) customExpense.push(r.category); }
+      }
+      const sig = `${r.date}|${r.time}|${r.amount}|${r.type}|${r.category}|${r.note}`;
+      if (existing.has(sig)) return;
+      transactions.unshift(r); existing.add(sig); added++;
+    });
+    LS.set('app_h_customCats', { expense: customExpense, income: customIncome });
+    state.transactions = transactions;
+    LS.set('app_h_transactions', transactions);
+    toast(`✓ 导入账本 ${added} 条`);
+    setTimeout(() => location.reload(), 700);
+    return;
+  }
+
+  let d;
+  try { d = JSON.parse(trimmed); }
+  catch(e){ toast('文件不是有效的 JSON / CSV'); return; }
+
+  let ok = false;
+
+  // ===== 情况 A：纯数组（账本列表）=====
+  if (Array.isArray(d)){
+    const list = d.filter(x => x && (x.amount !== undefined || x.date)).map(x => ({
+      id: x.id || (Date.now() + Math.floor(Math.random()*1000)),
+      date: x.date || todayStr(),
+      time: x.time || '12:00',
+      amount: parseFloat(x.amount) || 0,
+      type: (x.type === '收入' || x.type === 'income') ? 'income' : 'expense',
+      category: x.category || (x.type === '收入' ? '其他收入' : '其他'),
+      note: x.note || x.desc || ''
+    }));
+    transactions = [...list, ...transactions];
+    state.transactions = transactions;
+    LS.set('app_h_transactions', transactions);
+    toast(`✓ 导入 ${list.length} 条账本`);
+    setTimeout(() => location.reload(), 700);
+    return;
+  }
+
+  // ===== 情况 B：新版全量备份 {app, version, kv} =====
+  if (d.kv && typeof d.kv === 'object'){
+    let n = 0;
+    Object.keys(d.kv).forEach(k => {
+      try { localStorage.setItem(k, d.kv[k]); n++; } catch(e){}
+    });
+    ok = n > 0;
+    if (ok) toast(`✓ 已恢复 ${n} 项数据`);
+  }
+
+  // ===== 情况 C：旧版 App 备份 {version, app, data:{...}} =====
+  if (!ok && d.data && typeof d.data === 'object'){
+    let n = 0;
+    Object.keys(d.data).forEach(oldKey => {
+      const newKey = LEGACY_KEY_MAP[oldKey] || oldKey;
+      let val = coerce(d.data[oldKey]);
+      // 特殊处理：账本一定写成数组
+      if (newKey === 'app_h_transactions' && !Array.isArray(val)) val = [];
+      if (newKey === 'app_h_suppLib' && !Array.isArray(val)) val = SUPP_LIB_DEFAULT;
+      try { localStorage.setItem(newKey, JSON.stringify(val)); n++; } catch(e){ console.warn('写入失败', newKey, e); }
+    });
+    // 旧版的补剂列表键名如果没带过来，单独兜底
+    if (d.data.app_supplements && !localStorage.getItem('app_h_suppLib')){
+      try { localStorage.setItem('app_h_suppLib', JSON.stringify(coerce(d.data.app_supplements))); } catch(e){}
+    }
+    ok = n > 0;
+    if (ok) toast(`✓ 已从旧版备份恢复 ${n} 项`);
+  }
+
+  // ===== 情况 D：本 App v1 格式 {learn:{}, health:{}} =====
+  if (!ok && (d.learn || d.health)){
     if (d.learn){
       if (d.learn.learned) LS.set('learned:'+DAY, d.learn.learned);
       if (d.learn.wordDeckMap) LS.set('word-deck-map', d.learn.wordDeckMap);
-      if (d.learn.schedule){ if (d.learn.schedule.english) LearnStore.setSchedule('english', d.learn.schedule.english); if (d.learn.schedule.work) LearnStore.setSchedule('work', d.learn.schedule.work); }
+      if (d.learn.schedule){
+        if (d.learn.schedule.english) LearnStore.setSchedule('english', d.learn.schedule.english);
+        if (d.learn.schedule.work) LearnStore.setSchedule('work', d.learn.schedule.work);
+      }
       if (d.learn.wrongBook) LS.set('wrong-book', d.learn.wrongBook);
       if (d.learn.streak) LS.set('streak', d.learn.streak);
       if (d.learn.aiHistory) LS.set('ai-history', d.learn.aiHistory);
-      imported++;
     }
-    // 兼容顶层就带 health 字段
     const h = d.health || d;
-    if (h){
-      if (h.body) Object.assign(body, h.body);
-      if (h.suppLib) { suppLib = h.suppLib; saveSuppLib(); }
-      if (h.supplements && !h.suppLib) { suppLib = h.supplements; saveSuppLib(); }
-      if (h.profile){ Object.assign(profile, h.profile); HealthStore.save('profile', profile); }
-      if (h.skinState){ skinState = h.skinState; HealthStore.save('skinState', skinState); }
-      if (Array.isArray(h.transactions)){ transactions = h.transactions.concat(transactions); state.transactions = transactions; LS.set('app_h_transactions', transactions); }
-      if (Array.isArray(h.clothes)){ clothes = h.clothes; LS.set('app_h_clothes', clothes); }
-      if (h.skinProducts){ skinProducts = h.skinProducts; saveSkinProducts(); }
-      if (h.planStart) setPlanStart(new Date(h.planStart + 'T00:00:00'));
-      if (h.overrides) LS.set('app_h_planOverrides', h.overrides);
-      if (h.manualTodos) saveManualTodos(h.manualTodos);
-      if (h.todoStatus) saveTodoStatusMap(h.todoStatus);
-      if (h.sportSessions) saveSportSessions(h.sportSessions);
-      if (h.bodyHistory) saveBodyHistory(h.bodyHistory);
-      HealthStore.save('body', body);
-      imported++;
-    }
-    if (!imported) { toast('未识别的文件格式'); return; }
-    toast('导入成功');
-    closeSheet();
-    setTimeout(() => location.reload(), 700);
-  } catch(err){ toast('格式不对：'+err.message); }
+    if (h.body) HealthStore.save('body', h.body);
+    if (h.suppLib || h.supplements) { suppLib = h.suppLib || h.supplements; saveSuppLib(); }
+    if (h.profile) HealthStore.save('profile', h.profile);
+    if (h.skinState) HealthStore.save('skinState', h.skinState);
+    if (Array.isArray(h.transactions)) LS.set('app_h_transactions', h.transactions.concat(LS.get('app_h_transactions', [])));
+    if (Array.isArray(h.clothes)) LS.set('app_h_clothes', h.clothes);
+    if (h.skinProducts) HealthStore.save('skinProducts', h.skinProducts);
+    if (h.planStart) LS.set('app_h_planStartDate', h.planStart);
+    if (h.overrides) LS.set('app_h_planOverrides', h.overrides);
+    if (h.manualTodos) LS.set('app_h_calendarManual', h.manualTodos);
+    if (h.todoStatus) LS.set('app_h_todoStatus', h.todoStatus);
+    if (h.sportSessions) LS.set('app_h_sportSessions', h.sportSessions);
+    if (h.bodyHistory) LS.set('app_h_bodyHistory', h.bodyHistory);
+    ok = true;
+    toast('✓ 已从 v1 备份恢复');
+  }
+
+  // ===== 情况 E：直接就是一份"键值对"对象（无 data 包裹）=====
+  if (!ok && (d.app_body || d.transactions || d.dailyChecks || d.app_supplements)){
+    let n = 0;
+    Object.keys(d).forEach(k => {
+      const newKey = LEGACY_KEY_MAP[k] || k;
+      if (!/^(app_|dailyChecks|planStartDate|planOverrides|todoStatus|calendarManual|sportSessions|transactions|clothes|skinProducts|last_)/.test(newKey)) return;
+      const val = coerce(d[k]);
+      try { localStorage.setItem(newKey, JSON.stringify(val)); n++; } catch(e){}
+    });
+    ok = n > 0;
+    if (ok) toast(`✓ 已恢复 ${n} 项`);
+  }
+
+  if (!ok){ toast('未识别的文件格式'); return; }
+  setTimeout(() => location.reload(), 800);
 }
+
 function clearAllData(){
   if (!confirm('确定清空？所有学习、健康数据将丢失。')) return;
   const prefixes = ['learned:', 'know-done:', 'passage-done:', 'news-think-', 'news-done:', 'quote-done:', 'story-done:', 'yiyan-done:', 'general-done:', 'expr-done:', 'note:', 'ask-cache:', 'ask-text:', 'think-ans:', 'think-done-days:', 'expr-ans:', 'expr-grade:', 'today-words:', 'schedule:', 'cache:', 'weekly-result:', 'alltest-result', 'ai-', 'streak', 'app_h_'];
@@ -2352,7 +2578,7 @@ function clearAllData(){
 }
 
 // ================================================================
-// 事件委托：所有 data-act 都在 view 上一次性处理
+// 事件委托
 // ================================================================
 let searchTimer = null;
 view.addEventListener('input', e => {
@@ -2373,7 +2599,6 @@ view.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
 
-  // ---------- 语音/复制/外链/基础操作 ----------
   if (act === 'speak'){ e.stopPropagation(); toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
   if (act === 'copyText'){ copyText(t.dataset.text).then(ok => toast(ok?'已复制':'复制失败')); return; }
   if (act === 'openNews'){ openExternal(t.dataset.url); return; }
@@ -2391,7 +2616,6 @@ view.addEventListener('click', async e => {
     return;
   }
 
-  // ---------- 学习相关 ----------
   if (act === 'studySub'){ state.studySub = t.dataset.sub; render(); return; }
   if (act === 'englishSub'){ state.englishSub = t.dataset.sub; state.englishPage = 1; render(); return; }
   if (act === 'englishDeck'){ state.englishDeck = t.dataset.deck; LS.set('english-deck', state.englishDeck); state.englishPage = 1; render(); return; }
@@ -2472,7 +2696,6 @@ view.addEventListener('click', async e => {
     return;
   }
 
-  // ---------- 生活 tab 切换 ----------
   if (act === 'lifeSub'){ state.lifeSub = t.dataset.sub; render(); return; }
   if (act === 'calendarSub'){ state.calendarSub = t.dataset.sub; render(); return; }
   if (act === 'moneySub'){ state.moneySub = t.dataset.sub; render(); return; }
@@ -2480,7 +2703,6 @@ view.addEventListener('click', async e => {
   if (act === 'closetSub'){ state.closetSub = t.dataset.sub; render(); return; }
   if (act === 'careSub'){ state.careSub = t.dataset.sub; render(); return; }
 
-  // ---------- 日历 ----------
   if (act === 'prevMonth'){ state.calMonth--; if (state.calMonth < 0){ state.calMonth = 11; state.calYear--; } HealthStore.save('calMonth', state.calMonth); HealthStore.save('calYear', state.calYear); render(); return; }
   if (act === 'nextMonth'){ state.calMonth++; if (state.calMonth > 11){ state.calMonth = 0; state.calYear++; } HealthStore.save('calMonth', state.calMonth); HealthStore.save('calYear', state.calYear); render(); return; }
   if (act === 'backToToday'){ const now = new Date(); state.calYear = now.getFullYear(); state.calMonth = now.getMonth(); state.selectedDate = todayStr(); render(); return; }
@@ -2496,7 +2718,6 @@ view.addEventListener('click', async e => {
     render(); return;
   }
 
-  // ---------- 记账 ----------
   if (act === 'toggleManual'){ const a = document.getElementById('textInputArea'); if (a) a.classList.toggle('show'); return; }
   if (act === 'parseManual'){
     const v = document.getElementById('manualTxInput').value.trim();
@@ -2509,11 +2730,10 @@ view.addEventListener('click', async e => {
   if (act === 'exportCsv'){ exportCsv(); return; }
   if (act === 'importTxCsv'){ importTransactionsCsv(); return; }
 
-  // ★ 记账编辑区的按钮（之前没绑到 view 上）
   if (act === 'setTxType'){
     if (!state.pendingTx) return;
     state.pendingTx.type = t.dataset.t;
-    if (!getCatList(state.pendingTx.type).includes(state.pendingTx.category)) state.pendingTx.category = state.pendingTx.type === 'income' ? '其他收入' : '其他';
+    if (getCatList(state.pendingTx.type).indexOf(state.pendingTx.category) < 0) state.pendingTx.category = state.pendingTx.type === 'income' ? '其他收入' : '其他';
     renderTxEditor(); return;
   }
   if (act === 'setTxCat'){ if (!state.pendingTx) return; state.pendingTx.category = t.dataset.cat; renderTxEditor(); return; }
@@ -2538,7 +2758,6 @@ view.addEventListener('click', async e => {
     render(); return;
   }
 
-  // ---------- 运动 ----------
   if (act === 'startSport'){
     const t0 = document.getElementById('sportStartTime');
     const label = (t0 && t0.value) || fmtTime(new Date());
@@ -2579,7 +2798,6 @@ view.addEventListener('click', async e => {
     render({ keepScroll: true }); return;
   }
 
-  // ---------- 衣橱 ----------
   if (act === 'saveCloth'){
     const name = document.getElementById('clothName').value.trim();
     const cat = document.getElementById('clothCat').value;
@@ -2597,7 +2815,6 @@ view.addEventListener('click', async e => {
   }
   if (act === 'delCloth'){ if (!confirm('删除这件单品？')) return; clothes = clothes.filter(c => c.id !== Number(t.dataset.id)); LS.set('app_h_clothes', clothes); render(); return; }
 
-  // ---------- 护肤/补剂 ----------
   if (act === 'setSkin'){ skinState = t.dataset.skin; HealthStore.save('skinState', skinState); render(); return; }
   if (act === 'setProfileDraft'){ state.profileDraft[t.dataset.key] = t.dataset.val; render({ keepScroll: true }); return; }
   if (act === 'confirmProfile'){ Object.keys(state.profileDraft).forEach(k => { profile[k] = state.profileDraft[k]; }); HealthStore.save('profile', profile); toast('已保存'); render({ keepScroll: true }); return; }
@@ -2620,7 +2837,6 @@ view.addEventListener('click', async e => {
     saveCustomSkinSteps(custom);
     render({ keepScroll: true }); return;
   }
-  // 今日补剂：勾选一个 → 从今日列表移除
   if (act === 'takeSupp'){
     e.stopPropagation();
     const uid = t.dataset.uid;
@@ -2630,7 +2846,6 @@ view.addEventListener('click', async e => {
     render({ keepScroll: true });
     return;
   }
-  // 补剂库：添加
   if (act === 'addSuppLib'){
     const name = document.getElementById('suppLibName').value.trim();
     const dose = document.getElementById('suppLibDose').value.trim();
@@ -2641,7 +2856,6 @@ view.addEventListener('click', async e => {
     toast('已添加');
     render(); return;
   }
-  // 补剂库：删除
   if (act === 'delSuppLib'){
     if (!confirm('从补剂库中删除？')) return;
     suppLib = suppLib.filter(s => s.id !== Number(t.dataset.id));
@@ -2649,14 +2863,12 @@ view.addEventListener('click', async e => {
     render(); return;
   }
 
-  // ---------- 我的 ----------
   if (act === 'saveAI'){ const provider = document.getElementById('aiProvider').value; const key = document.getElementById('aiKey').value.trim(); if (provider !== 'none' && !key){ toast('请填入 API Key'); return; } AI.set(provider, key, ''); toast(provider === 'none' ? '已关闭 AI' : '已保存'); render({ keepScroll: true }); return; }
   if (act === 'exportData'){ doExport(); return; }
   if (act === 'importData'){ doImport(); return; }
   if (act === 'clearData'){ clearAllData(); return; }
 });
 
-// ---------- 时间线手动待办勾选（和日历联动） ----------
 view.addEventListener('click', e => {
   const dayEl = e.target.closest('[data-date]');
   if (dayEl){ state.selectedDate = dayEl.dataset.date; HealthStore.save('selectedDate', state.selectedDate); render(); return; }
@@ -2691,11 +2903,9 @@ view.addEventListener('click', e => {
   }
 });
 
-// ---------- 时间线上的圆圈（系统项） ----------
 view.addEventListener('click', e => {
   const c = e.target.closest('.check');
   if (c && !c.closest('[data-toggle-todo]') && !c.dataset.act){
-    // 系统项（data-check-key）
     if (c.dataset.checkKey){
       c.classList.toggle('done');
       const isDone = c.classList.contains('done');
@@ -2707,7 +2917,6 @@ view.addEventListener('click', e => {
   }
 });
 
-// ---------- 首页时间线跳转 ----------
 view.addEventListener('click', e => {
   const tl = e.target.closest('[data-home-action]');
   if (!tl || e.target.closest('.check')) return;
@@ -2719,7 +2928,6 @@ view.addEventListener('click', e => {
   if (action === 'todo'){ state.tab = 'life'; state.lifeSub = 'calendar'; render(); return; }
 });
 
-// ---------- 账目点击编辑/删除 ----------
 view.addEventListener('click', e => {
   const del = e.target.closest('[data-del-tx]');
   if (del){
@@ -2743,7 +2951,6 @@ view.addEventListener('click', e => {
   }
 });
 
-// ---------- change 事件 ----------
 view.addEventListener('change', e => {
   if (e.target.id === 'planStartInput'){ const v = e.target.value; if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return; setPlanStart(new Date(v + 'T00:00:00')); buildCalendarFromPlans(); render(); return; }
   if (e.target.id === 'clothCat'){ state.closetCat = e.target.value; render({ keepScroll: true }); return; }
@@ -2768,7 +2975,6 @@ view.addEventListener('change', e => {
   }
 });
 
-// ---------- sheet 内部事件（弹窗） ----------
 sheet.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
@@ -2794,7 +3000,129 @@ sheet.addEventListener('click', async e => {
   if (act === 'removeProduct'){ const stepId = state.pickingSkinStep; if (stepId){ delete skinProducts[stepId]; saveSkinProducts(); } closeSheet(); render({ keepScroll: true }); return; }
 });
 
-// ---------- 讯飞 WebSocket 语音识别 ----------
+/* ================================================================
+   ★★★ 语音识别：原生优先 → Web Speech API → 讯飞兜底 ★★★
+   ================================================================ */
+let _voiceActive = false;
+let _webRec = null;
+let _xunfeiActive = false;
+
+function setMicUI(listening, hintText){
+  const mic = document.getElementById('micBtn');
+  if (mic){ if (listening) mic.classList.add('listening'); else mic.classList.remove('listening'); }
+  const hint = document.getElementById('micHint');
+  if (hint && hintText) hint.textContent = hintText;
+}
+
+function scrollToTxEditor(){
+  setTimeout(() => {
+    const area = document.getElementById('txEditArea');
+    if (area) area.scrollIntoView({ block:'center', behavior:'smooth' });
+  }, 120);
+}
+
+function applyVoiceResult(text){
+  const v = String(text || '').trim();
+  if (!v) return;
+  state.pendingTx = parseTransactionText(v);
+  const onMoney = (state.tab === 'life' && state.lifeSub === 'money' && state.moneySub === 'record');
+  if (!onMoney){
+    state.tab = 'life'; state.lifeSub = 'money'; state.moneySub = 'record';
+    render().then(() => { renderTxEditor(); scrollToTxEditor(); }).catch(() => {});
+  } else {
+    renderTxEditor(); scrollToTxEditor();
+  }
+  toast('已识别：' + v.slice(0, 24));
+}
+
+// 原生语音识别回调
+window.__onSpeechResult = function(text, isFinal){
+  const hint = document.getElementById('micHint');
+  if (hint && text) hint.textContent = text;
+  if (isFinal){
+    _voiceActive = false;
+    setMicUI(false, '点击麦克风开始语音输入');
+    applyVoiceResult(text);
+  }
+};
+window.__onSpeechEnd = function(){
+  if (!_voiceActive) return;
+  _voiceActive = false;
+  setMicUI(false, '点击麦克风开始语音输入');
+};
+window.__onSpeechError = function(msg){
+  _voiceActive = false;
+  setMicUI(false, '点击麦克风开始语音输入');
+  if (msg && msg !== 'no-speech' && msg !== 'client') toast('识别失败：' + msg);
+};
+
+function startWebSpeech(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return false;
+  try {
+    _webRec = new SR();
+    _webRec.lang = 'zh-CN';
+    _webRec.continuous = false;
+    _webRec.interimResults = true;
+    let finalText = '';
+    _webRec.onresult = (ev) => {
+      let interim = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++){
+        const res = ev.results[i];
+        if (res.isFinal) finalText += res[0].transcript;
+        else interim += res[0].transcript;
+      }
+      const hint = document.getElementById('micHint');
+      if (hint) hint.textContent = finalText || interim;
+    };
+    _webRec.onerror = (ev) => {
+      _voiceActive = false; setMicUI(false, '点击麦克风开始语音输入');
+      if (ev.error !== 'no-speech' && ev.error !== 'aborted') toast('识别失败：' + ev.error);
+    };
+    _webRec.onend = () => {
+      _voiceActive = false; setMicUI(false, '点击麦克风开始语音输入');
+      if (finalText) applyVoiceResult(finalText);
+    };
+    _webRec.start();
+    return true;
+  } catch(e){ console.warn('Web Speech 启动失败', e); return false; }
+}
+
+function startVoiceInput(){
+  if (_voiceActive){
+    // 再次点击 → 停止
+    _voiceActive = false;
+    try { if (window.AndroidSTT && AndroidSTT.stop) AndroidSTT.stop(); } catch(e){}
+    try { if (_webRec) _webRec.stop(); } catch(e){}
+    if (_xunfeiActive) stopXunfeiRecognition();
+    setMicUI(false, '点击麦克风开始语音输入');
+    return;
+  }
+
+  // ① 原生 Android 语音识别
+  if (window.AndroidSTT && typeof AndroidSTT.start === 'function'){
+    try {
+      _voiceActive = true;
+      setMicUI(true, '正在聆听…（再次点击结束）');
+      AndroidSTT.start('zh-CN');
+      return;
+    } catch(e){ console.error('原生 STT 失败', e); }
+  }
+
+  // ② Web Speech API
+  if (window.SpeechRecognition || window.webkitSpeechRecognition){
+    _voiceActive = true;
+    setMicUI(true, '正在聆听…（再次点击结束）');
+    if (startWebSpeech()) return;
+    _voiceActive = false;
+  }
+
+  // ③ 讯飞 WebSocket
+  setMicUI(true, '正在聆听…（再次点击结束）');
+  startXunfeiRecognition();
+}
+
+// ---------- 讯飞 WebSocket 语音识别（兜底） ----------
 const XUNFEI_CONFIG = {
   APPID: "4c627b59",
   API_SECRET: "YzI1MDJmYWM0NTliNzNkMjl3NGIyM2Uz",
@@ -2826,9 +3154,8 @@ async function startXunfeiRecognition(){
     const wsUrl = await getWebSocketUrl();
     xunfeiSocket = new WebSocket(wsUrl);
     xunfeiSocket.onopen = () => {
-      isRecording = true;
-      const mic = document.getElementById('micBtn'); if (mic) mic.classList.add('listening');
-      const hint = document.getElementById('micHint'); if (hint) hint.textContent = '正在聆听...（再次点击结束）';
+      isRecording = true; _xunfeiActive = true; _voiceActive = true;
+      setMicUI(true, '正在聆听…（再次点击结束）');
       xunfeiSocket.send(JSON.stringify({ common: { app_id: XUNFEI_CONFIG.APPID }, business: { language: 'zh_cn', domain: 'iat', accent: 'mandarin', vad_eos: 3000, dwa: 'wpgs' }, data: { status: 0, format: 'audio/L16;rate=16000', encoding: 'raw' } }));
       processor.onaudioprocess = (e) => {
         if (!isRecording) return;
@@ -2851,10 +3178,12 @@ async function startXunfeiRecognition(){
         let text = res.data.result.ws.map(w => w.cw.map(c => c.w).join('')).join('');
         if (res.data.result.pgs === 'rpl') resultText = resultText.slice(0, -res.data.result.rg[0]) + text;
         else resultText += text;
+        const hint = document.getElementById('micHint');
+        if (hint) hint.textContent = resultText;
       }
       if (res.data && res.data.status === 2){
         stopXunfeiRecognition();
-        if (resultText.trim()){ state.pendingTx = parseTransactionText(resultText.trim()); renderTxEditor(); toast('已识别：' + resultText.slice(0, 20)); }
+        if (resultText.trim()) applyVoiceResult(resultText.trim());
       }
     };
     xunfeiSocket.onerror = (err) => { console.error('WS 错误', err); stopXunfeiRecognition(); toast('语音识别网络错误'); };
@@ -2862,11 +3191,12 @@ async function startXunfeiRecognition(){
   } catch(err){
     console.error(err);
     toast('无法访问麦克风：' + (err.message || err));
-    const mic = document.getElementById('micBtn'); if (mic) mic.classList.remove('listening');
+    _voiceActive = false; _xunfeiActive = false;
+    setMicUI(false, '点击麦克风开始语音输入');
   }
 }
 function stopXunfeiRecognition(){
-  isRecording = false;
+  isRecording = false; _xunfeiActive = false;
   if (processor){ try { processor.disconnect(); } catch(e){} processor = null; }
   if (audioContext){ try { audioContext.close(); } catch(e){} audioContext = null; }
   if (mediaStream){ mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
@@ -2874,13 +3204,13 @@ function stopXunfeiRecognition(){
     try { xunfeiSocket.send(JSON.stringify({ data: { status: 2, format: 'audio/L16;rate=16000', encoding: 'raw', audio: '' } })); } catch(e){}
     setTimeout(() => { try { if (xunfeiSocket) xunfeiSocket.close(); } catch(e){} xunfeiSocket = null; }, 500);
   } else xunfeiSocket = null;
-  const mic = document.getElementById('micBtn'); if (mic) mic.classList.remove('listening');
-  const hint = document.getElementById('micHint'); if (hint) hint.textContent = '点击麦克风开始语音输入';
+  setMicUI(false, '点击麦克风开始语音输入');
 }
+
 view.addEventListener('click', e => {
   const mic = e.target.closest('#micBtn');
   if (!mic) return;
-  if (isRecording) stopXunfeiRecognition(); else startXunfeiRecognition();
+  startVoiceInput();
 });
 
 // ---------- 底部 tab / FAB / 搜索 ----------
@@ -2921,7 +3251,7 @@ const WALK_LAST_KEY = 'app_h_lastWalkReminder';
 let _walkTimerHandle = null, _walkCountdownHandle = null, _walkEndTs = 0;
 function isInWalkWindow(){ const now = new Date(); const mins = now.getHours() * 60 + now.getMinutes(); return (mins >= 8*60 + 30 && mins <= 11*60 + 30) || (mins >= 13*60 + 30 && mins <= 17*60); }
 function vibratePattern(p){ try { if (navigator.vibrate) navigator.vibrate(p); } catch(e){} }
-function speakText(text){ const t = String(text || ''); if (!t) return; try { if (window.AndroidTTS && typeof AndroidTTS.speak === 'function') { AndroidTTS.speak(t, 'zh-CN'); return; } if ('speechSynthesis' in window){ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'zh-CN'; u.rate = 1.0; speechSynthesis.speak(u); } } catch(e){} }
+function speakText(text){ const t = String(text || ''); if (!t) return; try { if (window.AndroidTTS && typeof AndroidTTS.speak === 'function') { AndroidTTS.speak(t, 'zh-CN', 'walk' + Date.now()); return; } if (typeof speechSynthesis !== 'undefined'){ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'zh-CN'; u.rate = 1.0; speechSynthesis.speak(u); } } catch(e){} }
 function requestNotifPermission(){ try { if (typeof Notification === 'undefined') return; if (Notification.permission === 'default') Notification.requestPermission(); } catch(e){} }
 function showWalkNotification(){ try { if (typeof Notification === 'undefined') return; if (Notification.permission !== 'granted') return; const n = new Notification('该站起来走动了', { body: '起身 → 走动 2–3 分钟 → 下巴轻收 5 次', tag: 'walk-reminder-' + Math.floor(Date.now() / 30000) }); setTimeout(() => { try { n.close(); } catch(e){} }, 30000); } catch(e){} }
 function finishWalkTimer(){ const el = document.getElementById('centerTimer'); if (el) el.classList.remove('show'); if (_walkCountdownHandle){ clearInterval(_walkCountdownHandle); _walkCountdownHandle = null; } _walkEndTs = 0; try { playBeep(); } catch(e){} setTimeout(() => { try { playBeep(); } catch(e){} }, 420); vibratePattern([300, 150, 300]); setTimeout(() => speakText('时间到，回到座位继续吧'), 500); }
