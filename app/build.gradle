@@ -21,12 +21,20 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
     kotlinOptions {
         jvmTarget = '1.8'
+    }
+
+    // 关闭 buildFeatures 里没必要的功能，加快编译
+    buildFeatures {
+        buildConfig false
+        viewBinding false
     }
 }
 
