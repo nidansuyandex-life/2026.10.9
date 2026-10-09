@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
                 request?.grant(request.resources)
             }
 
-            // ★ 关键：处理 <input type="file"> 的文件选择器
+            // 处理 <input type="file"> 的文件选择器
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
@@ -63,7 +63,11 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 this@MainActivity.filePathCallback?.onReceiveValue(null)
                 this@MainActivity.filePathCallback = filePathCallback
-                val intent = fileChooserParams?.createIntent()
+                val intent: Intent? = fileChooserParams?.createIntent()
+                if (intent == null) {
+                    this@MainActivity.filePathCallback = null
+                    return false
+                }
                 return try {
                     startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
                     true
@@ -81,9 +85,9 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
-            if (filePathCallback == null) return
+            val cb = filePathCallback ?: return
             val results = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-            filePathCallback?.onReceiveValue(results)
+            cb.onReceiveValue(results)
             filePathCallback = null
         }
     }
