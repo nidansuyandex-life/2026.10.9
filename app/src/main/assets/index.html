@@ -209,7 +209,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .tx .amt{font-weight:600;font-size:14px;margin-left:8px;}
 .tx .amt.inc{color:var(--accent);}
 .tx .del-tx{width:24px;height:24px;border-radius:50%;border:none;background:#FFEDEA;color:var(--hot);font-size:12px;cursor:pointer;flex:none;line-height:1;}
-.cat-chip{font-size:11.5px;padding:6px 12px;border-radius:10px;background:#F3F5F9;color:#5A6175;font-weight:500;cursor:pointer;border:none;font-family:inherit;margin:2px;}
+.cat-chip{font-size:11.5px;padding:6px 12px;border-radius:10px;background:#F3F5F9;color:#5A6175;font-weight:500;cursor:pointer;border:none;font-family:inherit;margin:2px;display:inline-block;}
 .cat-chip.active{background:var(--accent);color:#fff;}
 .cat-chip.newcat{background:var(--blue-soft);color:var(--blue);}
 
@@ -945,6 +945,8 @@ function getPlanDayInfo(date = new Date()){
 
 const BODY_DEFAULT = { height:165, weight:51.7, bodyFat:33, shoulder:38, neck:32, bust:86, underbust:74, waist:68, abdomen:78, hip:92, upperArm:27, forearm:23, wrist:15.5, thigh:52, calf:34, ankle:21, armLength:56, legLength:96, inseam:72, footLength:23.5, footWidth:9 };
 const body = { ...BODY_DEFAULT, ...HealthStore.load('body', {}) };
+
+/* ========= 补剂库 & 今日补剂 ========= */
 const defaultSupps = [
   { id:1, name:'复合维生素B', dose:'1 粒', time:'早餐后', expiry:'' },
   { id:2, name:'维生素D/E', dose:'1 粒', time:'早餐后', expiry:'' },
@@ -953,8 +955,28 @@ const defaultSupps = [
   { id:5, name:'蛋白粉', dose:'20–25g', time:'训练后', expiry:'' },
   { id:6, name:'谷维素', dose:'1 片', time:'睡前（需要时）', expiry:'' }
 ];
-let supplements = HealthStore.load('supplements', defaultSupps);
-function saveSupplements(){ HealthStore.save('supplements', supplements); }
+// 主库：所有补剂
+let supplementLibrary = HealthStore.load('supplementLibrary', null);
+if (!Array.isArray(supplementLibrary)) {
+  // 从旧版 supplements 迁移
+  supplementLibrary = HealthStore.load('supplements', defaultSupps);
+  if (!Array.isArray(supplementLibrary)) supplementLibrary = defaultSupps;
+  HealthStore.save('supplementLibrary', supplementLibrary);
+}
+function saveSupplementLibrary(){ HealthStore.save('supplementLibrary', supplementLibrary); }
+
+// 今日已办 id 集合（按日期）
+function getSuppDoneIds(){ const v = LS.get('supp-done:'+todayStr(), []); return Array.isArray(v) ? v : []; }
+function setSuppDoneIds(ids){ LS.set('supp-done:'+todayStr(), ids); }
+// 今日补剂 = 库中未办项
+function getTodaySuppList(){
+  const done = new Set(getSuppDoneIds());
+  return supplementLibrary.filter(s => !done.has(s.id));
+}
+// 旧调用兼容（部分逻辑仍引用 supplements 变量）
+let supplements = supplementLibrary;
+function saveSupplements(){ supplements = supplementLibrary; saveSupplementLibrary(); }
+
 const PROFILE_DEFAULT = { skinType:'混合性', oiliness:'中', sensitivity:'中', aging:'低' };
 const profile = { ...PROFILE_DEFAULT, ...HealthStore.load('profile', {}) };
 const SKIN_STATES = {
@@ -1296,6 +1318,7 @@ function importTransactionsCsv(file){
   reader.readAsText(file, 'UTF-8');
 }
 
+/* ================= 数据源 ================= */
 const KnowledgeSource = {
   async fetchAll(){
     const tasks = [
@@ -1480,10 +1503,10 @@ async function fetchWeather(){
     try {
       const pos = await new Promise((resolve, reject) => {
         if (!navigator.geolocation) return reject(new Error('no geo'));
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 30*60*1000 });
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000, maximumAge: 30*60*1000 });
       });
       location = `${pos.coords.longitude.toFixed(2)},${pos.coords.latitude.toFixed(2)}`;
-    } catch(e){}
+    } catch(e){ console.warn('定位失败', e.message); }
     const url = `https://${APP_DEFAULTS.qweather.host}/v7/weather/now?location=${encodeURIComponent(location)}&key=${APP_DEFAULTS.qweather.key}`;
     const res = await fetch(url);
     const data = await res.json();
@@ -1503,7 +1526,7 @@ async function fetchWeather(){
   }
 }
 
-// ===================== TTS (只用有道在线，兼容 Android WebView) =====================
+/* ================= TTS ================= */
 const ttsPlayer = document.getElementById('ttsPlayer');
 let _currentBtn = null;
 let _ttsRequestId = 0;
@@ -1543,7 +1566,6 @@ function toggleSpeak(text, lang, btn){
   const wasPlaying = btn && btn.classList.contains('playing');
   stopSpeak();
   if (wasPlaying) return;
-  // Android WebView 不支持 speechSynthesis，直接走在线 TTS
   playOnlineTTS(text, lang, btn);
 }
 function copyText(text){
@@ -1687,9 +1709,7 @@ function renderTabs(){
   tabbar.innerHTML = TABS.map(t => `<button class="tab ${t.id===state.tab?'on':''}" data-tab="${t.id}"><span class="tab-icon">${t.icon}</span><span>${t.label}</span></button>`).join('');
 }
 
-/* ============================================================
-   首页（身体状态 2 行 3 列）
-   ============================================================ */
+/* ================= 首页 ================= */
 function homeView(){
   const now = new Date();
   const t = todayStr();
@@ -1703,6 +1723,9 @@ function homeView(){
   let sportText = plan.label;
   if (ov && ovMap[ov]) sportText = ovMap[ov];
 
+  // 是否需要显示“吃蛋白粉”（运动日 / 游泳 / 减量时）
+  const showProtein = !ov || ov === 'swim' || ov === 'reduced';
+
   const fixedItems = [
     { time:'07:00', text:'起床 - 晨间 90/90 呼吸', checkKey: `home_${t}_wake` },
     { time:'07:40', text:'护肤', sub:'早间护肤', action:'skin-morning', badge:'早间', checkKey: `home_${t}_skin_am` },
@@ -1710,10 +1733,17 @@ function homeView(){
     { time:'10:00', text:'学习', sub:'完成今日学习任务', action:'study', checkKey: `home_${t}_study` },
     { time:'11:30', text:'中饭（记得吃补剂）', sub:'米饭 + 肉/鱼/豆腐 + 两份蔬菜', action:'supplement', checkKey: `home_${t}_lunch` },
     { time:'17:00', text:'晚饭（记得吃补剂）', sub:'米饭 + 鱼/鸡肉 + 蔬菜（避免油腻）', action:'supplement', checkKey: `home_${t}_dinner` },
-    { time:'19:30', text: sportText, action:'sport', badge:'今日运动', checkKey: `home_${t}_sport` },
+    { time:'19:30', text: sportText, action:'sport', badge:'今日运动', checkKey: `home_${t}_sport` }
+  ];
+  // 运动下面多一条“吃蛋白粉”
+  if (showProtein){
+    fixedItems.push({ time:'20:15', text:'吃蛋白粉', sub:'训练后 20-25g', action:'supplement', checkKey: `home_${t}_protein` });
+  }
+  fixedItems.push(
     { time:'22:00', text:'洗漱（护肤）', sub:'晚间护理', action:'skin-night', badge:'晚间', checkKey: `home_${t}_skin_pm` },
     { time:'22:30', text:'睡前 90/90 呼吸', checkKey: `home_${t}_breathe` }
-  ];
+  );
+
   const todoItems = manualTodos.map(mt => ({
     time: mt.time || '99:99',
     text: mt.title,
@@ -2399,7 +2429,6 @@ function moneyExportPane(){
   </div>
   <button class="btn-primary" data-act="exportCsv">📤 导出 CSV</button>
   <button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button>
-  <input type="file" id="importTxFile" accept=".csv,text/csv" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;">
   <div class="card" style="margin-top:12px">
     <div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div>
     <div style="font-size:12px;color:var(--sub);line-height:1.7">
@@ -2740,11 +2769,13 @@ function careSection(){
   const sub = state.careSub || 'skin';
   const subs = [
     { id:'skin', label:'护肤' },
-    { id:'supp', label:'补剂' }
+    { id:'supp', label:'今日补剂' },
+    { id:'suppLib', label:'补剂库' }
   ];
   let content = '';
   if (sub === 'skin') content = careSkinPane();
-  else content = careSuppPane();
+  else if (sub === 'supp') content = careSuppPane();
+  else content = careSuppLibPane();
   return `<div class="subtabs" style="margin-top:4px;">${subs.map(s => `<button class="subtab ${s.id===sub?'on':''}" data-act="careSub" data-sub="${s.id}">${s.label}</button>`).join('')}</div>${content}`;
 }
 function careSkinPane(){
@@ -2813,17 +2844,41 @@ function careSkinPane(){
   <div class="card">${renderSteps('🌙 晚间流程', steps.night, 'night')}</div>`;
 }
 function careSuppPane(){
-  const suppHtml = supplements.map(s => {
+  const todayList = getTodaySuppList();
+  const suppHtml = todayList.length ? todayList.map(s => {
     const exp = s.expiry ? new Date(s.expiry + 'T00:00:00') : null;
     const expired = exp && exp < new Date();
-    const checkKey = `supp_${todayStr()}_${s.id}`;
-    const taken = isChecked(checkKey);
-    return `<div class="supp ${taken?'taken':''}"><span class="check ${taken?'done':''}" data-check-key="${checkKey}"></span><div class="e">💊</div><div class="body"><div class="n">${esc(s.name)}</div><div class="s">${esc(s.dose)} · ${esc(s.time)}${s.expiry ? ' · 保质期至 ' + s.expiry : ''}</div>${expired ? '<div style="color:var(--hot);font-weight:600;font-size:11px;margin-top:2px;">⚠️ 已过期</div>' : ''}</div><button class="del" data-act="delSupp" data-id="${s.id}">✕</button></div>`;
-  }).join('') || '<p class="tip" style="color:#8A90A2;padding:8px 0">暂无补剂记录</p>';
+    return `<div class="supp"><div class="e">💊</div><div class="body"><div class="n">${esc(s.name)}</div><div class="s">${esc(s.dose)} · ${esc(s.time)}${s.expiry ? ' · 保质期至 ' + s.expiry : ''}</div>${expired ? '<div style="color:var(--hot);font-weight:600;font-size:11px;margin-top:2px;">⚠️ 已过期</div>' : ''}</div><button class="mini-add" data-act="markSuppDone" data-id="${s.id}">✓ 已办</button></div>`;
+  }).join('') : '<p class="tip" style="color:#8A90A2;padding:8px 0;text-align:center;">今天的补剂都办完啦 🎉<br><span style="font-size:11.5px;">明天会自动从补剂库补充</span></p>';
   return `
+  <div class="card" style="background:linear-gradient(135deg,var(--pink),var(--pink2));color:#fff;border:0;">
+    <div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:8px;">今日补剂</div>
+    <div style="font-size:19px;font-weight:750;margin-bottom:6px;">${todayList.length} 项待办</div>
+    <div style="font-size:12.5px;opacity:.92;line-height:1.6;">点击「✓ 已办」会从今日列表移除，不会影响补剂库。</div>
+  </div>
   <div class="card">
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">我的补剂 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${supplements.length} 项</span></div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">今日清单 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${todayList.length} 项</span></div>
     ${suppHtml}
+  </div>
+  <div class="tip-card" style="background:#EAF3FF;border-color:#BFDBFE;color:#1E40AF;border-style:solid;">
+    💡 需要新增/删除补剂请到「补剂库」标签页。
+  </div>`;
+}
+function careSuppLibPane(){
+  const libHtml = supplementLibrary.length ? supplementLibrary.map(s => {
+    const exp = s.expiry ? new Date(s.expiry + 'T00:00:00') : null;
+    const expired = exp && exp < new Date();
+    return `<div class="supp"><div class="e">💊</div><div class="body"><div class="n">${esc(s.name)}</div><div class="s">${esc(s.dose)} · ${esc(s.time)}${s.expiry ? ' · 保质期至 ' + s.expiry : ''}</div>${expired ? '<div style="color:var(--hot);font-weight:600;font-size:11px;margin-top:2px;">⚠️ 已过期</div>' : ''}</div><button class="del" data-act="delSupp" data-id="${s.id}">✕</button></div>`;
+  }).join('') : '<p class="tip" style="color:#8A90A2;padding:8px 0;text-align:center;">补剂库是空的</p>';
+  return `
+  <div class="card" style="background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border:0;">
+    <div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:8px;">补剂库</div>
+    <div style="font-size:19px;font-weight:750;margin-bottom:6px;">${supplementLibrary.length} 项</div>
+    <div style="font-size:12.5px;opacity:.92;line-height:1.6;">每天会自动把库里的补剂放到「今日补剂」里，你办完即消。</div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">全部补剂 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${supplementLibrary.length} 项</span></div>
+    ${libHtml}
   </div>
   <div class="card">
     <div style="font-size:13px;font-weight:700;margin-bottom:10px;">添加补剂</div>
@@ -2831,7 +2886,7 @@ function careSuppPane(){
     <div class="dim-row"><span class="lb">剂量</span><input type="text" id="suppDose" placeholder="如 1 粒" style="width:160px;text-align:left"></div>
     <div class="dim-row"><span class="lb">服用时间</span><input type="text" id="suppTime" placeholder="如 早餐后" style="width:160px;text-align:left"></div>
     <div class="dim-row"><span class="lb">保质期至</span><input type="date" id="suppExpiry" style="width:160px"></div>
-    <button class="btn-primary" data-act="addSupp" style="margin-top:12px;background:linear-gradient(135deg,var(--pink),var(--pink2))">＋ 添加补剂</button>
+    <button class="btn-primary" data-act="addSupp" style="margin-top:12px;background:linear-gradient(135deg,var(--purple),var(--purple2))">＋ 添加补剂</button>
   </div>`;
 }
 function openProductSheet(stepId){
@@ -3352,18 +3407,38 @@ async function sendAIMessage(){
   state.aiLoading = false; openAIAssistant();
 }
 
+/* ========== 数据导入导出 ========== */
 function doExport(){
   const data = {
-    app:'daily-health', version:1, exportedAt:new Date().toISOString(),
-    learn: { learned: LearnStore.getLearned(), wordDeckMap: LS.get('word-deck-map', {}), schedule: { english: LearnStore.getSchedule('english'), work: LearnStore.getSchedule('work') }, wrongBook: LearnStore.getWrongBook(), streak: LearnStore.getStreak(), aiHistory: LearnStore.getAIHistory() },
+    app:'daily-health', version:2, exportedAt:new Date().toISOString(),
+    learn: {
+      learned: LearnStore.getLearned(),
+      wordDeckMap: LS.get('word-deck-map', {}),
+      schedule: { english: LearnStore.getSchedule('english'), work: LearnStore.getSchedule('work') },
+      wrongBook: LearnStore.getWrongBook(),
+      streak: LearnStore.getStreak(),
+      aiHistory: LearnStore.getAIHistory(),
+      knowDone: LearnStore.getAllKnowDoneEver(),
+      thinkDone: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('think-done-days:')) out[k.slice(16)] = LS.get(k, []); }); } catch(e){} return out; })(),
+      thinkAns: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('think-ans:')) out[k.slice(10)] = LS.get(k, ''); }); } catch(e){} return out; })(),
+      notes: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('note:')) out[k.slice(5)] = LS.get(k, ''); }); }); } catch(e){} return out; })()
+    },
     health: {
-      body, supplements, profile, skinState, transactions, clothes, skinProducts,
+      body: { ...body },
+      supplementLibrary,
+      profile: { ...profile },
+      skinState,
+      transactions,
+      clothes,
+      skinProducts,
       planStart: localDateStr(PLAN_START),
       overrides: getOverrides(),
       manualTodos: getManualTodos(),
       todoStatus: getTodoStatusMap(),
       sportSessions: getSportSessions(),
-      bodyHistory: getBodyHistory()
+      bodyHistory: getBodyHistory(),
+      checks: getChecks(),
+      suppDone: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('supp-done:')) out[k.slice(10)] = LS.get(k, []); }); } catch(e){} return out; })()
     }
   };
   const json = JSON.stringify(data, null, 2);
@@ -3385,10 +3460,10 @@ function doExport(){
     toast('导出失败：' + err.message);
   }
 }
-function doImport(){
+function pickFile(accept, onPick){
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json,application/json';
+  input.accept = accept || '*/*';
   input.style.position = 'fixed';
   input.style.left = '-9999px';
   input.style.top = '-9999px';
@@ -3397,7 +3472,14 @@ function doImport(){
   input.style.opacity = '0';
   input.onchange = e => {
     const f = e.target.files[0];
-    if (!f) return;
+    if (f) onPick(f);
+    setTimeout(() => { try { document.body.removeChild(input); } catch(err){} }, 5000);
+  };
+  document.body.appendChild(input);
+  setTimeout(() => { try { input.click(); } catch(e){ toast('无法打开文件选择器'); } }, 50);
+}
+function doImport(){
+  pickFile('.json,application/json', f => {
     if (!confirm('导入会覆盖当前数据，确定继续？')) return;
     const reader = new FileReader();
     reader.onload = ev => {
@@ -3405,10 +3487,7 @@ function doImport(){
       catch(err){ toast('文件读取失败：' + err.message); }
     };
     reader.readAsText(f, 'UTF-8');
-  };
-  document.body.appendChild(input);
-  input.click();
-  setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
+  });
 }
 function doImportConfirm(text){
   try {
@@ -3420,10 +3499,27 @@ function doImportConfirm(text){
       if (d.learn.wrongBook) LS.set('wrong-book', d.learn.wrongBook);
       if (d.learn.streak) LS.set('streak', d.learn.streak);
       if (d.learn.aiHistory) LS.set('ai-history', d.learn.aiHistory);
+      // 知识掌握
+      if (Array.isArray(d.learn.knowDone) && d.learn.knowDone.length){
+        const s = new Set(LearnStore.getAllKnowDoneEver());
+        d.learn.knowDone.forEach(q => s.add(q));
+        LS.set('know-done:'+DAY, [...s]);
+      }
+      // 思维模型
+      if (d.learn.thinkDone && typeof d.learn.thinkDone === 'object'){
+        Object.entries(d.learn.thinkDone).forEach(([name, days]) => { LS.set('think-done-days:'+name, days); });
+      }
+      if (d.learn.thinkAns && typeof d.learn.thinkAns === 'object'){
+        Object.entries(d.learn.thinkAns).forEach(([name, ans]) => { LS.set('think-ans:'+name, ans); });
+      }
+      if (d.learn.notes && typeof d.learn.notes === 'object'){
+        Object.entries(d.learn.notes).forEach(([q, note]) => { LS.set('note:'+q, note); });
+      }
     }
     if (d.health){
       if (d.health.body) Object.assign(body, d.health.body);
-      if (d.health.supplements){ supplements = d.health.supplements; saveSupplements(); }
+      if (Array.isArray(d.health.supplementLibrary)){ supplementLibrary = d.health.supplementLibrary; supplements = supplementLibrary; saveSupplementLibrary(); }
+      else if (Array.isArray(d.health.supplements)){ supplementLibrary = d.health.supplements; supplements = supplementLibrary; saveSupplementLibrary(); }
       if (d.health.profile){ Object.assign(profile, d.health.profile); HealthStore.save('profile', profile); }
       if (d.health.skinState){ skinState = d.health.skinState; HealthStore.save('skinState', skinState); }
       if (d.health.transactions){ transactions = d.health.transactions; state.transactions = transactions; LS.set('app_h_transactions', transactions); }
@@ -3435,6 +3531,10 @@ function doImportConfirm(text){
       if (d.health.todoStatus) saveTodoStatusMap(d.health.todoStatus);
       if (d.health.sportSessions) saveSportSessions(d.health.sportSessions);
       if (d.health.bodyHistory) saveBodyHistory(d.health.bodyHistory);
+      if (d.health.checks) saveChecks(d.health.checks);
+      if (d.health.suppDone && typeof d.health.suppDone === 'object'){
+        Object.entries(d.health.suppDone).forEach(([date, ids]) => { LS.set('supp-done:'+date, ids); });
+      }
       HealthStore.save('body', body);
     }
     toast('导入成功');
@@ -3444,12 +3544,13 @@ function doImportConfirm(text){
 }
 function clearAllData(){
   if (!confirm('确定清空？所有学习、健康数据将丢失。')) return;
-  const prefixes = ['learned:', 'know-done:', 'passage-done:', 'news-think-', 'news-done:', 'quote-done:', 'story-done:', 'yiyan-done:', 'general-done:', 'expr-done:', 'note:', 'ask-cache:', 'ask-text:', 'think-ans:', 'think-done-days:', 'expr-ans:', 'expr-grade:', 'today-words:', 'schedule:', 'cache:', 'weekly-result:', 'alltest-result', 'ai-', 'streak', 'app_h_'];
+  const prefixes = ['learned:', 'know-done:', 'passage-done:', 'news-think-', 'news-done:', 'quote-done:', 'story-done:', 'yiyan-done:', 'general-done:', 'expr-done:', 'note:', 'ask-cache:', 'ask-text:', 'think-ans:', 'think-done-days:', 'expr-ans:', 'expr-grade:', 'today-words:', 'schedule:', 'cache:', 'weekly-result:', 'alltest-result', 'ai-', 'streak', 'app_h_', 'supp-done:'];
   try { Object.keys(localStorage).forEach(k => { if (prefixes.some(p => k.startsWith(p))) localStorage.removeItem(k); }); } catch(e){}
   toast('已清空');
   setTimeout(() => location.reload(), 500);
 }
 
+/* ================= 事件监听 ================= */
 let searchTimer = null;
 view.addEventListener('input', e => {
   const el = e.target; if (!el) return;
@@ -3472,7 +3573,7 @@ view.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
 
-  // 优先处理触发文件上传
+  /* 触发文件上传 */
   if (act === 'triggerClothUpload'){
     e.preventDefault();
     const inp = document.getElementById('clothUpload');
@@ -3619,6 +3720,7 @@ view.addEventListener('click', async e => {
     if (!saved[date]) saved[date] = [];
     saved[date].push({ time, title, desc, done:false });
     saveManualTodos(saved);
+    buildCalendarFromPlans();
     render(); return;
   }
   if (act === 'toggleManual'){ const a = document.getElementById('textInputArea'); if (a) a.classList.toggle('show'); return; }
@@ -3631,7 +3733,10 @@ view.addEventListener('click', async e => {
   }
   if (act === 'setExportRange'){ state.exportRange = t.dataset.range; HealthStore.save('exportRange', state.exportRange); render({ keepScroll: true }); return; }
   if (act === 'exportCsv'){ exportCsv(); return; }
-  if (act === 'importTxCsv'){ document.getElementById('importTxFile').click(); return; }
+  if (act === 'importTxCsv'){
+    pickFile('.csv,text/csv', f => importTransactionsCsv(f));
+    return;
+  }
   if (act === 'startSport'){
     const t0 = document.getElementById('sportStartTime');
     const label = (t0 && t0.value) || fmtTime(new Date());
@@ -3744,21 +3849,36 @@ view.addEventListener('click', async e => {
     saveCustomSkinSteps(custom);
     render({ keepScroll: true }); return;
   }
+  if (act === 'markSuppDone'){
+    const id = Number(t.dataset.id);
+    const done = getSuppDoneIds();
+    if (!done.includes(id)) done.push(id);
+    setSuppDoneIds(done);
+    toast('已办 ✓');
+    render({ keepScroll: true }); return;
+  }
   if (act === 'addSupp'){
     const name = document.getElementById('suppName').value.trim();
     const dose = document.getElementById('suppDose').value.trim();
     const time = document.getElementById('suppTime').value.trim();
     const expiry = document.getElementById('suppExpiry').value;
     if (!name){ toast('请输入名称'); return; }
-    supplements.push({ id: Date.now()+Math.floor(Math.random()*1000), name, dose, time, expiry });
-    saveSupplements();
-    toast('已添加');
-    render(); return;
+    const newItem = { id: Date.now()+Math.floor(Math.random()*1000), name, dose, time, expiry };
+    supplementLibrary.push(newItem);
+    supplements = supplementLibrary;
+    saveSupplementLibrary();
+    toast('已添加到补剂库');
+    render({ keepScroll: true }); return;
   }
   if (act === 'delSupp'){
-    if (!confirm('删除？')) return;
-    supplements = supplements.filter(s => s.id !== Number(t.dataset.id));
-    saveSupplements();
+    if (!confirm('从补剂库删除？今日补剂也会消失。')) return;
+    const id = Number(t.dataset.id);
+    supplementLibrary = supplementLibrary.filter(s => s.id !== id);
+    supplements = supplementLibrary;
+    saveSupplementLibrary();
+    // 从今天已办里也删掉
+    const done = getSuppDoneIds().filter(x => x !== id);
+    setSuppDoneIds(done);
     render(); return;
   }
   if (act === 'saveAI'){
@@ -3772,25 +3892,18 @@ view.addEventListener('click', async e => {
   if (act === 'exportData'){ doExport(); return; }
   if (act === 'importData'){ doImport(); return; }
   if (act === 'clearData'){ clearAllData(); return; }
-});
 
-sheet.addEventListener('click', async e => {
-  const t = e.target.closest('[data-act]'); if (!t) return;
-  const act = t.dataset.act;
-  if (act === 'closeSheet'){ closeSheet(); return; }
-  if (act === 'reviewSpeak'){ toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
-  if (act === 'reviewSubmit'){ submitReviewAnswer(); return; }
-  if (act === 'rate'){ rateAndNext(t.dataset.rating); return; }
-  if (act === 'aiRole'){ state.aiRole = t.dataset.role; LS.set('ai-role', state.aiRole); openAIAssistant(); return; }
-  if (act === 'clearAIHistory'){ if (confirm('清空？')){ LearnStore.clearAIHistory(); openAIAssistant(); } return; }
-  if (act === 'aiSend'){ sendAIMessage(); return; }
-  if (act === 'setTxType'){ state.pendingTx.type = t.dataset.t; if (!getCatList(state.pendingTx.type).includes(state.pendingTx.category)) state.pendingTx.category = state.pendingTx.type === 'income' ? '其他收入' : '其他'; renderTxEditor(); return; }
-  if (act === 'setTxCat'){ state.pendingTx.category = t.dataset.cat; renderTxEditor(); return; }
+  /* ========= 记账编辑区（原来在 sheet 里，现移到 view） ========= */
+  if (act === 'setTxType'){ if (!state.pendingTx) return; state.pendingTx.type = t.dataset.t; if (!getCatList(state.pendingTx.type).includes(state.pendingTx.category)) state.pendingTx.category = state.pendingTx.type === 'income' ? '其他收入' : '其他'; renderTxEditor(); return; }
+  if (act === 'setTxCat'){ if (!state.pendingTx) return; state.pendingTx.category = t.dataset.cat; renderTxEditor(); return; }
   if (act === 'cancelTx'){ state.pendingTx = null; renderTxEditor(); return; }
   if (act === 'confirmTx'){
-    const amt = parseFloat(document.getElementById('txAmount').value);
+    if (!state.pendingTx) return;
+    const amtEl = document.getElementById('txAmount');
+    const noteEl = document.getElementById('txNote');
+    const amt = parseFloat(amtEl ? amtEl.value : 0);
     if (!amt || amt <= 0){ toast('请输入有效金额'); return; }
-    const note = document.getElementById('txNote').value.trim();
+    const note = noteEl ? noteEl.value.trim() : '';
     if (state.pendingTx.editingId){
       const tx = transactions.find(x => x.id === state.pendingTx.editingId);
       if (tx){ tx.amount = amt; tx.category = state.pendingTx.category; tx.note = note; tx.type = state.pendingTx.type; }
@@ -3803,6 +3916,19 @@ sheet.addEventListener('click', async e => {
     toast('已保存');
     render(); return;
   }
+});
+
+/* sheet 里剩余的事件 */
+sheet.addEventListener('click', async e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const act = t.dataset.act;
+  if (act === 'closeSheet'){ closeSheet(); return; }
+  if (act === 'reviewSpeak'){ toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
+  if (act === 'reviewSubmit'){ submitReviewAnswer(); return; }
+  if (act === 'rate'){ rateAndNext(t.dataset.rating); return; }
+  if (act === 'aiRole'){ state.aiRole = t.dataset.role; LS.set('ai-role', state.aiRole); openAIAssistant(); return; }
+  if (act === 'clearAIHistory'){ if (confirm('清空？')){ LearnStore.clearAIHistory(); openAIAssistant(); } return; }
+  if (act === 'aiSend'){ sendAIMessage(); return; }
   if (act === 'analyzeProduct'){
     const name = document.getElementById('prodName').value.trim();
     const ingr = document.getElementById('prodIngr').value.trim();
@@ -3827,39 +3953,48 @@ sheet.addEventListener('click', async e => {
   }
 });
 
+/* 时间线 / 日历 待办联动 */
 view.addEventListener('click', e => {
   const dayEl = e.target.closest('[data-date]');
   if (dayEl){ state.selectedDate = dayEl.dataset.date; HealthStore.save('selectedDate', state.selectedDate); render(); return; }
+
+  // 时间线或日历的待办勾选（在 check 之前处理）
   const toggle = e.target.closest('[data-toggle-todo]');
   if (toggle && !e.target.closest('[data-del-todo]')){
+    e.stopPropagation();
     try {
       const payload = JSON.parse(decodeURIComponent(toggle.dataset.toggleTodo));
-      const item = (state.calendarData[payload.date] || []).find(x => x.time === payload.time && x.title === payload.title);
-      if (item){
-        const m = getTodoStatusMap();
-        const k = getTodoKey(payload.date, item);
-        if (m[k]) delete m[k]; else m[k] = true;
-        saveTodoStatusMap(m);
-        render({ keepScroll: true });
-      }
-    } catch(err){}
+      const m = getTodoStatusMap();
+      // 找现有的 calendarData 项（或者用 payload 直接构造）
+      let item = (state.calendarData[payload.date] || []).find(x => (x.time||'') === (payload.time||'') && (x.title||'') === (payload.title||''));
+      if (!item) item = { time: payload.time, title: payload.title };
+      const k = getTodoKey(payload.date, item);
+      if (m[k]) delete m[k]; else m[k] = true;
+      saveTodoStatusMap(m);
+      buildCalendarFromPlans();
+      render({ keepScroll: true });
+    } catch(err){ console.error(err); }
     return;
   }
   const del = e.target.closest('[data-del-todo]');
   if (del){
+    e.stopPropagation();
     try {
       const payload = JSON.parse(decodeURIComponent(del.dataset.delTodo));
       const saved = getManualTodos();
       if (saved[payload.date]){
-        saved[payload.date] = saved[payload.date].filter(x => !(x.time === payload.time && x.title === payload.title));
+        saved[payload.date] = saved[payload.date].filter(x => !((x.time||'') === (payload.time||'') && (x.title||'') === (payload.title||'')));
         if (!saved[payload.date].length) delete saved[payload.date];
         saveManualTodos(saved);
+        buildCalendarFromPlans();
         render({ keepScroll: true });
       }
     } catch(err){}
     return;
   }
 });
+
+/* check 单独处理（只在没有 data-toggle-todo 时用） */
 view.addEventListener('click', e => {
   const c = e.target.closest('.check');
   if (c && !c.closest('[data-toggle-todo]')){
@@ -3871,6 +4006,8 @@ view.addEventListener('click', e => {
     return;
   }
 });
+
+/* 首页时间线动作 */
 view.addEventListener('click', e => {
   const tl = e.target.closest('[data-home-action]');
   if (!tl || e.target.closest('.check')) return;
@@ -3881,6 +4018,8 @@ view.addEventListener('click', e => {
   if (action === 'study'){ state.tab = 'study'; render(); return; }
   if (action === 'todo'){ state.tab = 'life'; state.lifeSub = 'calendar'; render(); return; }
 });
+
+/* 记账条目点击编辑 / 删除 */
 view.addEventListener('click', e => {
   const del = e.target.closest('[data-del-tx]');
   if (del){
@@ -3903,13 +4042,8 @@ view.addEventListener('click', e => {
     return;
   }
 });
+
 view.addEventListener('change', e => {
-  if (e.target.id === 'importTxFile'){
-    const f = e.target.files[0];
-    if (f) importTransactionsCsv(f);
-    e.target.value = '';
-    return;
-  }
   if (e.target.id === 'planStartInput'){
     const v = e.target.value;
     if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
@@ -3952,7 +4086,7 @@ view.addEventListener('change', e => {
   }
 });
 
-// ================= 讯飞 WebSocket 语音识别（用 Web Crypto 替代 CryptoJS） =================
+/* ================= 讯飞 WebSocket 语音 ================= */
 const XUNFEI_CONFIG = {
     APPID: "4c627b59",
     API_SECRET: "YzI1MDJmYWM0NTliNzNkMjl3NGIyM2Uz",
@@ -3984,6 +4118,9 @@ async function getWebSocketUrl() {
 
 async function startXunfeiRecognition() {
     if (isRecording) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        toast('浏览器不支持麦克风'); return;
+    }
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true } });
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -3991,19 +4128,16 @@ async function startXunfeiRecognition() {
         processor = audioContext.createScriptProcessor(4096, 1, 1);
 
         let wsUrl;
-        try {
-            wsUrl = await getWebSocketUrl();
-        } catch (e) {
-            toast('签名失败：' + (e.message || ''));
-            throw e;
-        }
+        try { wsUrl = await getWebSocketUrl(); }
+        catch (e) { toast('签名失败：' + (e.message || '')); throw e; }
+
         xunfeiSocket = new WebSocket(wsUrl);
 
         xunfeiSocket.onopen = () => {
             isRecording = true;
             const mic = document.getElementById('micBtn'); if (mic) mic.classList.add('listening');
             const hint = document.getElementById('micHint'); if (hint) hint.textContent = '正在聆听...（再次点击麦克风结束）';
-            
+
             xunfeiSocket.send(JSON.stringify({
                 common: { app_id: XUNFEI_CONFIG.APPID },
                 business: { language: 'zh_cn', domain: 'iat', accent: 'mandarin', vad_eos: 3000, dwa: 'wpgs' },
@@ -4021,7 +4155,7 @@ async function startXunfeiRecognition() {
                 let binary = '';
                 for (let i = 0; i < uint8Array.length; i++) binary += String.fromCharCode(uint8Array[i]);
                 const base64Data = btoa(binary);
-                
+
                 if (xunfeiSocket.readyState === WebSocket.OPEN) {
                     xunfeiSocket.send(JSON.stringify({ data: { status: 1, format: 'audio/L16;rate=16000', encoding: 'raw', audio: base64Data } }));
                 }
@@ -4077,11 +4211,8 @@ function stopXunfeiRecognition() {
 view.addEventListener('click', e => {
   const mic = e.target.closest('#micBtn');
   if (!mic) return;
-  if (isRecording) {
-      stopXunfeiRecognition();
-  } else {
-      startXunfeiRecognition();
-  }
+  if (isRecording) stopXunfeiRecognition();
+  else startXunfeiRecognition();
 });
 
 tabbar.addEventListener('click', e => {
@@ -4124,6 +4255,7 @@ window.addEventListener('beforeunload', () => {
   HealthStore.save('setsDone', state.setsDone);
 });
 
+/* ================= 走一走提醒 ================= */
 const WALK_LAST_KEY = 'app_h_lastWalkReminder';
 let _walkTimerHandle = null;
 let _walkCountdownHandle = null;
@@ -4215,6 +4347,7 @@ function initWalkReminder(){
   window.addEventListener('focus', () => checkWalkReminder(false));
 }
 
+/* ================= 初始化 ================= */
 (function init(){
   loadDataFromGlobals();
   buildCalendarFromPlans();
