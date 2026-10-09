@@ -1,0 +1,19 @@
+android {
+    // ... 其他配置
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['libs']
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation files('libs/Codec.aar')
+    implementation files('libs/SparkChain.aar')
+    
+    // 讯飞 SDK 通常需要的基础库
+    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'androidx.webkit:webkit:1.8.0'
+}
