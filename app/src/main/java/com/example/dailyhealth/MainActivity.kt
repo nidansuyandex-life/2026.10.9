@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.util.Log
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -19,12 +22,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.webkit.WebViewAssetLoader
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val FILE_CHOOSER_REQUEST_CODE = 1001
+    private var tts: TextToSpeech? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +53,16 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, toRequest.toTypedArray(), 100)
         }
 
-        // ★ 使用 WebViewAssetLoader，让页面从 https://appassets.androidplatform.net 加载
+        // ★ 初始化原生 TTS
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                Log.d("TTS", "TTS 初始化成功")
+            } else {
+                Log.e("TTS", "TTS 初始化失败: $status")
+            }
+        }
+
+        // ★ WebViewAssetLoader — 让页面走 https，getUserMedia / crypto.subtle 才能用
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
@@ -68,13 +82,17 @@ class MainActivity : AppCompatActivity() {
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.databaseEnabled = true
 
+        // ★ JS 桥接：原生 TTS
+        webView.addJavascriptInterface(TTSBridge(), "AndroidTTS")
+        // ★ JS 桥接：原生保存文件
+        webView.addJavascriptInterface(FileBridge(), "AndroidFile")
+
         webView.webChromeClient = object : WebChromeClient() {
-            // 麦克风授权
             override fun onPermissionRequest(request: PermissionRequest?) {
+                // 授权麦克风
                 request?.grant(request.resources)
             }
 
-            // <input type="file"> 文件选择器
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
@@ -106,8 +124,45 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ★ 通过 https 域名加载 assets，让 getUserMedia 能工作
+        // ★ 通过 https 加载 assets，这是让麦克风/加密 API 能工作的关键
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+    }
+
+    /** 原生 TTS 桥接 */
+    inner class TTSBridge {
+        @JavascriptInterface
+        fun speak(text: String, lang: String) {
+            if (text.isBlank()) return
+            tts?.let { t ->
+                val locale = if (lang.startsWith("zh")) Locale.SIMPLIFIED_CHINESE else Locale.US
+                val result = t.setLanguage(locale)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e("TTS", "语言不支持: $lang")
+                    return
+                }
+                t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts-${System.currentTimeMillis()}")
+            }
+        }
+
+        @JavascriptInterface
+        fun stop() {
+            tts?.stop()
+        }
+    }
+
+    /** 原生文件保存桥接 */
+    inner class FileBridge {
+        @JavascriptInterface
+        fun saveFile(content: String, fileName: String, mimeType: String) {
+            try {
+                val downloadsDir = getExternalFilesDir(null)
+                val file = java.io.File(downloadsDir, fileName)
+                file.writeText(content)
+                Log.d("FileBridge", "文件已保存: ${file.absolutePath}")
+            } catch (e: Exception) {
+                Log.e("FileBridge", "保存失败", e)
+            }
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -118,6 +173,13 @@ class MainActivity : AppCompatActivity() {
             cb.onReceiveValue(results)
             filePathCallback = null
         }
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
+        super.onDestroy()
     }
 
     override fun onBackPressed() {
