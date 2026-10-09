@@ -3409,8 +3409,21 @@ async function sendAIMessage(){
 
 /* ========== 数据导入导出 ========== */
 function doExport(){
+  // 读取 localStorage 中以 prefix 开头的所有 key，返回 { 后缀: 值 }
+  const readAll = (prefix, sliceLen, def) => {
+    const out = {};
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith(prefix)) out[k.slice(sliceLen)] = LS.get(k, def);
+      });
+    } catch(e){}
+    return out;
+  };
+
   const data = {
-    app:'daily-health', version:2, exportedAt:new Date().toISOString(),
+    app: 'daily-health',
+    version: 2,
+    exportedAt: new Date().toISOString(),
     learn: {
       learned: LearnStore.getLearned(),
       wordDeckMap: LS.get('word-deck-map', {}),
@@ -3419,9 +3432,9 @@ function doExport(){
       streak: LearnStore.getStreak(),
       aiHistory: LearnStore.getAIHistory(),
       knowDone: LearnStore.getAllKnowDoneEver(),
-      thinkDone: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('think-done-days:')) out[k.slice(16)] = LS.get(k, []); }); } catch(e){} return out; })(),
-      thinkAns: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('think-ans:')) out[k.slice(10)] = LS.get(k, ''); }); } catch(e){} return out; })(),
-      notes: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('note:')) out[k.slice(5)] = LS.get(k, ''); }); }); } catch(e){} return out; })()
+      thinkDone: readAll('think-done-days:', 16, []),
+      thinkAns: readAll('think-ans:', 10, ''),
+      notes: readAll('note:', 5, '')
     },
     health: {
       body: { ...body },
@@ -3438,20 +3451,24 @@ function doExport(){
       sportSessions: getSportSessions(),
       bodyHistory: getBodyHistory(),
       checks: getChecks(),
-      suppDone: (function(){ const out = {}; try { Object.keys(localStorage).forEach(k => { if (k.startsWith('supp-done:')) out[k.slice(10)] = LS.get(k, []); }); } catch(e){} return out; })()
+      suppDone: readAll('supp-done:', 10, [])
     }
   };
+
   const json = JSON.stringify(data, null, 2);
   const filename = `日常健康备份_${todayStr()}.json`;
   try {
-    const blob = new Blob([json], { type:'application/json;charset=utf-8' });
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      try { URL.revokeObjectURL(url); } catch(e){}
+    }, 200);
     toast('已导出：' + filename);
   } catch(err){
     if (window.AndroidBridge && typeof AndroidBridge.saveFile === 'function'){
