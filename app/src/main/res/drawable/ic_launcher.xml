@@ -5,7 +5,7 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 背景圆角渐变方 -->
+    <!-- 背景：蓝紫渐变圆角方 -->
     <path
         android:pathData="M20,0 L88,0 A20,20 0 0 1 108,20 L108,88 A20,20 0 0 1 88,108 L20,108 A20,20 0 0 1 0,88 L0,20 A20,20 0 0 1 20,0 Z">
         <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
@@ -19,8 +19,13 @@
         </aapt:attr>
     </path>
 
-    <!-- 中心白色十字（健康符号） -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M48,26 L60,26 L60,48 L82,48 L82,60 L60,60 L60,82 L48,82 L48,60 L26,60 L26,48 L48,48 Z"/>
+    <!-- “苏”字 简体 -->
+    <!-- 草字头：横 + 两竖 -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M28,28 L80,28 L80,34 L28,34 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M40,18 L46,18 L46,48 L40,48 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M62,18 L68,18 L68,48 L62,48 Z"/>
+    <!-- 下部“办”：横折钩、撇、点 -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M20,52 L56,52 L56,88 L50,88 L50,58 L26,58 L26,88 L20,88 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M60,52 L88,52 L88,58 L66,58 L66,70 L88,70 L88,76 L60,76 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M64,78 L70,78 L70,92 L64,92 Z"/>
 </vector>
