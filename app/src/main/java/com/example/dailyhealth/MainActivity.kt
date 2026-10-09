@@ -35,7 +35,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 一次性申请所有需要的权限
+        // 一次性申请所有权限
         val needPerms = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -53,16 +53,13 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, toRequest.toTypedArray(), 100)
         }
 
-        // ★ 初始化原生 TTS
+        // ★ 关键 1：初始化原生 TTS
         tts = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                Log.d("TTS", "TTS 初始化成功")
-            } else {
-                Log.e("TTS", "TTS 初始化失败: $status")
-            }
+            if (status == TextToSpeech.SUCCESS) Log.d("TTS", "TTS 初始化成功")
+            else Log.e("TTS", "TTS 初始化失败: $status")
         }
 
-        // ★ WebViewAssetLoader — 让页面走 https，getUserMedia / crypto.subtle 才能用
+        // ★ 关键 2：WebViewAssetLoader（让页面走 https，麦克风/WebCrypto 才能用）
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
@@ -80,19 +77,17 @@ class MainActivity : AppCompatActivity() {
         settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.databaseEnabled = true
 
-        // ★ JS 桥接：原生 TTS
+        // ★ 关键 3：注入 AndroidTTS 和 AndroidFile 桥接
         webView.addJavascriptInterface(TTSBridge(), "AndroidTTS")
-        // ★ JS 桥接：原生保存文件
         webView.addJavascriptInterface(FileBridge(), "AndroidFile")
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
-                // 授权麦克风
                 request?.grant(request.resources)
             }
 
+            // ★ 关键 4：文件选择器
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
@@ -124,11 +119,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ★ 通过 https 加载 assets，这是让麦克风/加密 API 能工作的关键
+        // ★ 关键 5：从 https 域名加载
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html")
     }
 
-    /** 原生 TTS 桥接 */
     inner class TTSBridge {
         @JavascriptInterface
         fun speak(text: String, lang: String) {
@@ -145,20 +139,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun stop() {
-            tts?.stop()
-        }
+        fun stop() { tts?.stop() }
     }
 
-    /** 原生文件保存桥接 */
     inner class FileBridge {
         @JavascriptInterface
         fun saveFile(content: String, fileName: String, mimeType: String) {
             try {
-                val downloadsDir = getExternalFilesDir(null)
-                val file = java.io.File(downloadsDir, fileName)
+                val dir = getExternalFilesDir(null)
+                val file = java.io.File(dir, fileName)
                 file.writeText(content)
-                Log.d("FileBridge", "文件已保存: ${file.absolutePath}")
+                Log.d("FileBridge", "已保存: ${file.absolutePath}")
             } catch (e: Exception) {
                 Log.e("FileBridge", "保存失败", e)
             }
@@ -183,10 +174,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
+        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 }
