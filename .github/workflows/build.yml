@@ -20,7 +20,9 @@ jobs:
         distribution: 'temurin'
 
     - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.2'          # ★ 关键：锁定 Gradle 8.2
 
     - name: Build Debug APK
       run: gradle assembleDebug --no-daemon
