@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <meta name="theme-color" content="#f6f7fb">
 <title>日常 · 健康生活</title>
-<!-- 引入 CryptoJS 用于讯飞 WebSocket 鉴权签名 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 <script src="./data/decks.js"></script>
 <script src="./data/valve.js"></script>
 <script src="./data/thinking.js"></script>
@@ -263,7 +261,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 
 .upload{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:140px;border:2px dashed #D9DEEA;border-radius:18px;padding:20px;text-align:center;color:#9AA0B2;font-size:12.5px;background:#fff;margin-bottom:12px;cursor:pointer;position:relative;}
 .upload .plus{display:block;font-size:28px;color:#C3C9D8;margin-bottom:6px;}
-.upload input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;}
+.upload input[type=file]{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;}
 .upload img{max-width:100%;max-height:200px;border-radius:12px;margin-top:8px;display:block;}
 .lib-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
 .lib-item{position:relative;background:#F7F8FC;border-radius:14px;padding:10px;text-align:center;overflow:hidden;}
@@ -1505,40 +1503,47 @@ async function fetchWeather(){
   }
 }
 
+// ===================== TTS (只用有道在线，兼容 Android WebView) =====================
 const ttsPlayer = document.getElementById('ttsPlayer');
 let _currentBtn = null;
+let _ttsRequestId = 0;
+
 function playOnlineTTS(text, lang, btn){
   try {
     if (ttsPlayer){ try { ttsPlayer.pause(); } catch(e){} ttsPlayer.currentTime = 0; }
     const isZh = lang && lang.startsWith('zh');
-    const url = isZh ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=zh` : `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&type=2`;
-    ttsPlayer.src = url; _currentBtn = btn;
+    const trimmed = String(text).slice(0, 800);
+    if (!trimmed.trim()) return;
+    const reqId = ++_ttsRequestId;
+    const url = isZh
+      ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed)}&le=zh`
+      : `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed)}&type=2`;
+    ttsPlayer.src = url;
+    _currentBtn = btn;
     if (btn) btn.classList.add('playing');
-    const cleanup = () => { if (_currentBtn) _currentBtn.classList.remove('playing'); _currentBtn = null; };
-    ttsPlayer.onended = cleanup; ttsPlayer.onerror = cleanup;
-    const p = ttsPlayer.play(); if (p && p.catch) p.catch(cleanup);
-  } catch(e){}
+    const cleanup = () => {
+      if (reqId !== _ttsRequestId) return;
+      if (_currentBtn) _currentBtn.classList.remove('playing');
+      _currentBtn = null;
+    };
+    ttsPlayer.onended = cleanup;
+    ttsPlayer.onerror = () => { cleanup(); toast('朗读失败，请检查网络'); };
+    const p = ttsPlayer.play();
+    if (p && p.catch) p.catch(() => { cleanup(); toast('朗读被拦截，请点两次'); });
+  } catch(e){ console.error('TTS 异常', e); toast('朗读异常'); }
 }
 function stopSpeak(){
-  try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch(e){}
   try { if (ttsPlayer){ ttsPlayer.pause(); ttsPlayer.currentTime = 0; } } catch(e){}
   document.querySelectorAll('.playing').forEach(b => b.classList.remove('playing'));
   _currentBtn = null;
+  _ttsRequestId++;
 }
 function toggleSpeak(text, lang, btn){
   if (!text) return;
   const wasPlaying = btn && btn.classList.contains('playing');
-  stopSpeak(); if (wasPlaying) return;
-  if ('speechSynthesis' in window){
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang && lang.startsWith('zh') ? lang : 'en-US';
-      u.rate = lang && lang.startsWith('zh') ? 1 : 0.85;
-      if (btn) btn.classList.add('playing');
-      u.onend = u.onerror = () => { if (btn) btn.classList.remove('playing'); };
-      speechSynthesis.speak(u); return;
-    } catch(e){}
-  }
+  stopSpeak();
+  if (wasPlaying) return;
+  // Android WebView 不支持 speechSynthesis，直接走在线 TTS
   playOnlineTTS(text, lang, btn);
 }
 function copyText(text){
@@ -1739,7 +1744,6 @@ function homeView(){
   const monthExp = monthTx.filter(x => x.type === 'expense').reduce((s,x) => s + x.amount, 0);
   const todaySess = getSportSession();
 
-  /* ★ 身体状态 2 行 3 列 */
   const bodyStateOptions = [
     { mode:'original', label:'正常', icon:'✅' },
     { mode:'swim', label:'游泳代替', icon:'🏊' },
@@ -2395,7 +2399,7 @@ function moneyExportPane(){
   </div>
   <button class="btn-primary" data-act="exportCsv">📤 导出 CSV</button>
   <button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button>
-  <input type="file" id="importTxFile" accept=".csv,text/csv" style="display:none">
+  <input type="file" id="importTxFile" accept=".csv,text/csv" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;">
   <div class="card" style="margin-top:12px">
     <div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div>
     <div style="font-size:12px;color:var(--sub);line-height:1.7">
@@ -2678,7 +2682,7 @@ function closetAddPane(){
   </div>
   <div class="card">
     <div style="font-size:13px;font-weight:700;margin-bottom:10px;">添加单品</div>
-    <label class="upload" for="clothUpload" style="min-height:120px;">
+    <label class="upload" data-act="triggerClothUpload" style="min-height:120px;">
       <span class="plus">＋</span><span>点击上传衣物照片</span><span style="font-size:11px;color:#B9C0D0">支持 JPG / PNG</span>
       <input type="file" id="clothUpload" accept="image/*">
       <img id="clothPreview" style="display:none" alt="预览">
@@ -3385,7 +3389,12 @@ function doImport(){
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json,application/json';
-  input.style.display = 'none';
+  input.style.position = 'fixed';
+  input.style.left = '-9999px';
+  input.style.top = '-9999px';
+  input.style.width = '1px';
+  input.style.height = '1px';
+  input.style.opacity = '0';
   input.onchange = e => {
     const f = e.target.files[0];
     if (!f) return;
@@ -3399,7 +3408,7 @@ function doImport(){
   };
   document.body.appendChild(input);
   input.click();
-  setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 3000);
+  setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
 }
 function doImportConfirm(text){
   try {
@@ -3462,6 +3471,14 @@ view.addEventListener('input', e => {
 view.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
+
+  // 优先处理触发文件上传
+  if (act === 'triggerClothUpload'){
+    e.preventDefault();
+    const inp = document.getElementById('clothUpload');
+    if (inp) inp.click();
+    return;
+  }
 
   if (act === 'speak'){ e.stopPropagation(); toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
   if (act === 'copyText'){ copyText(t.dataset.text).then(ok => toast(ok?'已复制':'复制失败')); return; }
@@ -3935,7 +3952,7 @@ view.addEventListener('change', e => {
   }
 });
 
-// ================= 讯飞 WebSocket 语音识别 (替换旧逻辑) =================
+// ================= 讯飞 WebSocket 语音识别（用 Web Crypto 替代 CryptoJS） =================
 const XUNFEI_CONFIG = {
     APPID: "4c627b59",
     API_SECRET: "YzI1MDJmYWM0NTliNzNkMjl3NGIyM2Uz",
@@ -3950,13 +3967,18 @@ let mediaStream = null;
 let processor = null;
 let isRecording = false;
 
-function getWebSocketUrl() {
-    let date = new Date().toUTCString();
-    let signatureOrigin = `host: ${XUNFEI_CONFIG.HOST}\ndate: ${date}\nGET ${XUNFEI_CONFIG.PATH} HTTP/1.1`;
-    let signatureSha = CryptoJS.HmacSHA256(signatureOrigin, XUNFEI_CONFIG.API_SECRET);
-    let signature = CryptoJS.enc.Base64.stringify(signatureSha);
-    let authorizationOrigin = `api_key="${XUNFEI_CONFIG.API_KEY}", algorithm="hmac-sha256", headers="host date request-line", signature="${signature}"`;
-    let authorization = btoa(authorizationOrigin);
+async function getWebSocketUrl() {
+    const date = new Date().toUTCString();
+    const signatureOrigin = `host: ${XUNFEI_CONFIG.HOST}\ndate: ${date}\nGET ${XUNFEI_CONFIG.PATH} HTTP/1.1`;
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+        'raw', enc.encode(XUNFEI_CONFIG.API_SECRET),
+        { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const sigBuf = await crypto.subtle.sign('HMAC', key, enc.encode(signatureOrigin));
+    const signature = btoa(String.fromCharCode(...new Uint8Array(sigBuf)));
+    const authorizationOrigin = `api_key="${XUNFEI_CONFIG.API_KEY}", algorithm="hmac-sha256", headers="host date request-line", signature="${signature}"`;
+    const authorization = btoa(authorizationOrigin);
     return `wss://${XUNFEI_CONFIG.HOST}${XUNFEI_CONFIG.PATH}?authorization=${authorization}&date=${encodeURIComponent(date)}&host=${XUNFEI_CONFIG.HOST}`;
 }
 
@@ -3968,7 +3990,14 @@ async function startXunfeiRecognition() {
         const source = audioContext.createMediaStreamSource(mediaStream);
         processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-        xunfeiSocket = new WebSocket(getWebSocketUrl());
+        let wsUrl;
+        try {
+            wsUrl = await getWebSocketUrl();
+        } catch (e) {
+            toast('签名失败：' + (e.message || ''));
+            throw e;
+        }
+        xunfeiSocket = new WebSocket(wsUrl);
 
         xunfeiSocket.onopen = () => {
             isRecording = true;
@@ -4004,10 +4033,10 @@ async function startXunfeiRecognition() {
         let resultText = '';
         xunfeiSocket.onmessage = (e) => {
             const res = JSON.parse(e.data);
-            if (res.code !== 0) { console.error('讯飞错误:', res); return; }
+            if (res.code !== 0) { console.error('讯飞错误:', res); toast('识别错误 code=' + res.code); return; }
             if (res.data && res.data.result) {
                 let text = res.data.result.ws.map(w => w.cw.map(c => c.w).join('')).join('');
-                if (res.data.result.pgs === 'rpl') { // 替换
+                if (res.data.result.pgs === 'rpl') {
                     resultText = resultText.slice(0, -res.data.result.rg[0]) + text;
                 } else {
                     resultText += text;
@@ -4023,23 +4052,24 @@ async function startXunfeiRecognition() {
             }
         };
 
-        xunfeiSocket.onerror = (err) => { console.error(err); stopXunfeiRecognition(); toast('语音识别网络错误'); };
+        xunfeiSocket.onerror = (err) => { console.error('WS 错误', err); stopXunfeiRecognition(); toast('语音识别网络错误'); };
+        xunfeiSocket.onclose = () => { if (isRecording) { stopXunfeiRecognition(); } };
     } catch (err) {
         console.error(err);
-        toast('无法访问麦克风: ' + err.message);
+        toast('无法访问麦克风: ' + (err.message || err));
         const mic = document.getElementById('micBtn'); if (mic) mic.classList.remove('listening');
     }
 }
 
 function stopXunfeiRecognition() {
     isRecording = false;
-    if (processor) { processor.disconnect(); processor = null; }
-    if (audioContext) { audioContext.close(); audioContext = null; }
+    if (processor) { try { processor.disconnect(); } catch(e){} processor = null; }
+    if (audioContext) { try { audioContext.close(); } catch(e){} audioContext = null; }
     if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
     if (xunfeiSocket && xunfeiSocket.readyState === WebSocket.OPEN) {
-        xunfeiSocket.send(JSON.stringify({ data: { status: 2, format: 'audio/L16;rate=16000', encoding: 'raw', audio: '' } }));
-        setTimeout(() => { if (xunfeiSocket) xunfeiSocket.close(); xunfeiSocket = null; }, 500);
-    }
+        try { xunfeiSocket.send(JSON.stringify({ data: { status: 2, format: 'audio/L16;rate=16000', encoding: 'raw', audio: '' } })); } catch(e){}
+        setTimeout(() => { try { if (xunfeiSocket) xunfeiSocket.close(); } catch(e){} xunfeiSocket = null; }, 500);
+    } else { xunfeiSocket = null; }
     const mic = document.getElementById('micBtn'); if (mic) mic.classList.remove('listening');
     const hint = document.getElementById('micHint'); if (hint) hint.textContent = '点击麦克风开始语音输入';
 }
