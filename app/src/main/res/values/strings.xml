@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="brand">#4F46E5</color>
-    <color name="brand2">#7C3AED</color>
-    <color name="accent">#1FBFA9</color>
-
-    <!-- ★ 图标背景色（自适应图标背景层会引用这个） -->
-    <color name="ic_launcher_background">#4F46E5</color>
-
-    <color name="white">#FFFFFF</color>
-    <color name="black">#111827</color>
+    <string name="app_name">日常·健康生活</string>
 </resources>
