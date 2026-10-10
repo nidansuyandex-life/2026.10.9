@@ -1,26 +1,67 @@
-plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 
 android {
     namespace 'com.example.dailyhealth'
     compileSdk 34
+
     defaultConfig {
         applicationId "com.example.dailyhealth"
         minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        // 讯飞 SparkChain 的 so 只支持这两个 ABI
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
     }
-    buildFeatures { viewBinding true }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                          'proguard-rules.pro'
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = '17' }
+
+    buildFeatures { viewBinding true }
+
+    packagingOptions {
+        jniLibs.useLegacyPackaging = true
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.txt',
+                'META-INF/*.kotlin_module',
+                'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+            ]
+        }
+    }
+
+    // 允许明文 HTTP（你的 API 多是 http，QWeather 是 https）
+    // 已在 AndroidManifest 里通过 usesCleartextTraffic=true 处理
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.core:core-ktx:1.13.1'
-    // 讯飞 SparkChain（本地 aar）
-    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // ── 讯飞本地 aar（Codec.aar / SparkChain.aar）──
+    implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
 }
