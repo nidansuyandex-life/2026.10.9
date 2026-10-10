@@ -10,7 +10,7 @@
 <script src="./data/thinking.js"></script>
 <script src="./data/scenes.js"></script>
 <style>
-:root{--brand:#4f46e5;--brand2:#7c3aed;--sub:#6b7280;--ok:#059669;--warn:#b45309;--err:#dc2626;--accent:#1FBFA9;--accent2:#5FD9C4;--accent-soft:#E7F9F5;--hot:#FF6B5B;--hot-soft:#FFF0EC;--purple:#8B7CF6;--purple2:#B39BFF;--blue:#4A9EFF;--blue-soft:#EAF3FF;--pink:#FF6FA5;--pink2:#FFA1C4;--pink-soft:#FFEEF5;--line:#e6e8f0;}
+:root{--brand:#4f46e5;--brand2:#7c3aed;--sub:#6b7280;--ok:#059669;--err:#dc2626;--accent:#1FBFA9;--accent2:#5FD9C4;--accent-soft:#E7F9F5;--hot:#FF6B5B;--hot-soft:#FFF0EC;--blue:#4A9EFF;--blue-soft:#EAF3FF;--pink:#FF6FA5;--pink-soft:#FFEEF5;--line:#e6e8f0;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;height:100%;}
 body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#e9ebf3;color:#111827;display:flex;justify-content:center;height:100dvh;overflow:hidden;}
@@ -20,7 +20,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .brand .dot{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand2));}
 .today{font-size:11.5px;color:var(--sub);display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end;}
 .top-icon-btn{border:0;background:#fff;width:34px;height:34px;border-radius:11px;font-size:15px;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.06);}
-#view{flex:1;overflow-y:auto;padding:2px 14px 88px;-webkit-overflow-scrolling:touch;will-change:scroll-position;}
+#view{flex:1;overflow-y:auto;padding:2px 14px 88px;-webkit-overflow-scrolling:touch;}
 #view::-webkit-scrollbar{width:0;}
 .tabbar{flex-shrink:0;display:flex;background:rgba(255,255,255,.95);border-top:1px solid rgba(0,0,0,.06);padding:8px 2px calc(8px + env(safe-area-inset-bottom));}
 .tab{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 0;border-radius:12px;cursor:pointer;color:#9aa0b0;font-size:9.5px;font-weight:600;font-family:inherit;}
@@ -28,7 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .tab-icon{font-size:16px;line-height:1;}
 .card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;border:1px solid rgba(16,24,40,.04);}
 .hero{padding:4px 4px 10px;}
-.hero-k{font-size:12px;color:var(--brand);font-weight:700;letter-spacing:.5px;margin-bottom:6px;}
+.hero-k{font-size:12px;color:var(--brand);font-weight:700;margin-bottom:6px;}
 .hero h1{font-size:20px;margin:0;}
 .sec-title{font-size:13px;font-weight:700;color:#3b4256;margin:14px 4px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
 .muted{color:var(--sub);}
@@ -61,7 +61,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .home-tl-item{display:flex;align-items:center;gap:10px;padding:11px 14px;position:relative;}
 .home-tl-text{flex:1;font-size:13.5px;color:#1B1F2A;line-height:1.45;min-width:0;}
 .home-tl-text .tm{color:var(--sub);font-size:11px;font-weight:600;margin-right:6px;}
-.home-tl-text .sub{color:var(--sub);font-size:11px;display:block;margin-top:2px;}
 .check{width:22px;height:22px;border-radius:50%;border:2px solid #E3E6EF;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;cursor:pointer;background:#fff;}
 .check.done{background:var(--accent);border-color:var(--accent);}
 .check.done::after{content:'✓';}
@@ -101,7 +100,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .deck-chip .dc-name{font-size:13px;font-weight:750;}
 .deck-chip .dc-meta{font-size:10.5px;opacity:.7;}
 .progress-bar{height:6px;background:#e5e7f5;border-radius:99px;overflow:hidden;margin-top:8px;}
-.progress-bar > div{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));transition:width .3s;}
+.progress-bar > div{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));}
 .load-more{border:0;background:#f1f2f9;color:#4b5265;width:100%;padding:12px;border-radius:10px;font-size:13px;font-weight:650;cursor:pointer;margin-top:6px;font-family:inherit;}
 .answer-input{width:100%;min-height:80px;border:1px solid var(--line);border-radius:12px;padding:11px;font-size:14px;line-height:1.7;resize:vertical;background:#fafbfe;margin-top:6px;font-family:inherit;}
 .h-task{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #F3F5F9;}
@@ -120,7 +119,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .tl-item:last-child{padding-bottom:0;}
 .tl-time{font-size:11px;color:var(--sub);}
 .tl-title{font-size:13.5px;font-weight:500;}
-.tl-desc{font-size:12px;color:var(--sub);margin-top:2px;}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 .cal-head .m{font-size:15px;font-weight:700;}
 .cal-head span.nav{color:#B9C0D0;font-size:17px;cursor:pointer;padding:0 6px;}
@@ -202,7 +200,6 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid var(--l
     <div class="brand"><span class="dot"></span>日常 · 健康生活</div>
     <div style="display:flex;align-items:center;gap:8px;">
       <button class="top-icon-btn" id="diagBtn" title="环境诊断">🩺</button>
-      <button class="top-icon-btn" id="globalSearchBtn">🔍</button>
       <div class="today" id="todayLabel"></div>
     </div>
   </header>
@@ -230,7 +227,7 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid var(--l
 </div>
 
 <script>
-/* ============ 通用工具 ============ */
+/* ================= 通用工具 ================= */
 const DAY = Math.floor((Date.now() + 8*3600*1000) / 86400000);
 const DAILY_WORD_COUNT = 5, DAILY_VALVE_COUNT = 5, REVIEW_TARGET = 5, PAGE_SIZE = 30;
 const WEEK_CN = '日一二三四五六';
@@ -243,7 +240,6 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function fmtTime(d){ return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function fmtShort(d){ return (d.getMonth()+1)+'/'+d.getDate(); }
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
 function dailyPick(arr,n,salt=0){
   if(!arr||!arr.length) return [];
   let seed=(DAY*1000+salt*7919)%2147483647;
@@ -266,10 +262,10 @@ function toast(msg){
   el.textContent = msg;
   requestAnimationFrame(()=>el.classList.add('show'));
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(()=>{ el.classList.remove('show'); }, 2200);
+  _toastTimer = setTimeout(()=>{ el.classList.remove('show'); }, 2500);
 }
 
-/* ============ 音频解锁 ============ */
+/* ================= 音频解锁 ================= */
 let _audioUnlocked = false;
 function unlockAudio(){
   if(_audioUnlocked) return;
@@ -287,7 +283,7 @@ document.addEventListener('touchstart', unlockAudio, { once:true, passive:true }
 document.addEventListener('mousedown', unlockAudio, { once:true });
 document.addEventListener('click', unlockAudio, { once:true });
 
-/* ============ 存储层 ============ */
+/* ================= 存储层 ================= */
 const NativeStore = {
   available: !!(window.AndroidStore && typeof window.AndroidStore.get === 'function'),
   get(k,d){
@@ -310,7 +306,7 @@ const NativeStore = {
 };
 const LS = { get:(k,d)=>NativeStore.get(k,d), set:(k,v)=>NativeStore.set(k,v), del:(k)=>NativeStore.del(k) };
 
-/* ============ API Keys ============ */
+/* ================= API Keys ================= */
 const ApiKeys = {
   FALLBACK: {
     tianapi: '708c4bb3ecbb509f855b2aaa03e4a182',
@@ -322,7 +318,7 @@ const ApiKeys = {
   get(path){ const src = this.FALLBACK; const parts = String(path).split('.'); let v = src; for(const p of parts){ v = v[p]; if(v===undefined) return ''; } return v; }
 };
 
-/* ============ 天聚限速 ============ */
+/* ================= 天聚限速 ================= */
 const TianapiQueue = {
   _lastTs: 0, _tail: Promise.resolve(),
   async run(fn){
@@ -341,7 +337,7 @@ async function tianapiFetch(url, timeout=8000){
   return await TianapiQueue.run(async()=>await raceTimeout(fetchJson(url,timeout),timeout+1000));
 }
 
-/* ============ 内置数据 ============ */
+/* ================= 内置数据 ================= */
 const FALLBACK_WHY = [
   { q:'为什么天空是蓝色的？', a:'太阳光进入大气层时，波长较短的蓝光被空气分子散射得最厉害（瑞利散射），所以天空呈现蓝色。' },
   { q:'为什么海水是咸的？', a:'雨水冲刷陆地岩石，把矿物质带入海洋，经过数十亿年蒸发浓缩，海水就越来越咸。' },
@@ -447,7 +443,7 @@ function loadDataFromGlobals(){
   } else { SEED.SCENES = { '通用':[{q:'今天想说点什么？',guide:'自由发挥。'}] }; }
 }
 
-/* ============ TTS：AndroidTTS 优先 ============ */
+/* ================= TTS ================= */
 let _currentSpeakBtn = null, _speakSeq = 0;
 function stopSpeak(){
   try{ if(window.AndroidTTS && AndroidTTS.stop) AndroidTTS.stop(); }catch(e){}
@@ -458,7 +454,7 @@ function stopSpeak(){
   _speakSeq++;
 }
 window.__onTTSDone = function(){ document.querySelectorAll('.playing').forEach(b=>b.classList.remove('playing')); _currentSpeakBtn=null; };
-window.__onTTSError = function(uid,msg){ window.__onTTSDone(); if(msg) console.warn('TTS err:',msg); };
+window.__onTTSError = function(uid,msg){ window.__onTTSDone(); };
 
 function toggleSpeak(text, lang, btn){
   if(!text){ toast('没有内容可朗读'); return; }
@@ -472,14 +468,21 @@ function toggleSpeak(text, lang, btn){
   if(btn){ btn.classList.add('playing'); _currentSpeakBtn = btn; }
   toast('🔊 正在朗读…');
 
-  // ① 原生 AndroidTTS（截图显示可用）
+  // ★ 多签名尝试（原生接口调用签名可能不同）
   if(window.AndroidTTS && typeof AndroidTTS.speak === 'function'){
-    try{
-      AndroidTTS.speak(trimmed, langStr, 'u'+seq);
-      return;
-    }catch(e){ console.error('原生 TTS 失败', e); }
+    // 尝试 3 参数
+    try { AndroidTTS.speak(trimmed, langStr, 'u'+seq); return; }
+    catch(e1){
+      // 尝试 2 参数
+      try { AndroidTTS.speak(trimmed, langStr); return; }
+      catch(e2){
+        // 尝试 1 参数
+        try { AndroidTTS.speak(trimmed); return; }
+        catch(e3){ console.error('AndroidTTS 所有签名都失败', e1, e2, e3); }
+      }
+    }
   }
-  // ② 浏览器 speechSynthesis
+  // 浏览器 speechSynthesis
   if(typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined'){
     try{
       speechSynthesis.cancel();
@@ -491,15 +494,15 @@ function toggleSpeak(text, lang, btn){
       return;
     }catch(e){}
   }
-  // ③ 有道兜底（截图显示不可用，但保留）
+  // 有道兜底
   const player = document.getElementById('ttsPlayer');
-  if(!player){ toast('朗读失败：无播放器'); return; }
+  if(!player){ toast('❌ 朗读失败：无播放器'); return; }
   const isZh = langStr.indexOf('zh') === 0;
   const url = isZh
     ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed.slice(0,400))}&le=zh`
     : `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed.slice(0,400))}&type=2`;
   player.onended = ()=>{ if(_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing'); _currentSpeakBtn=null; };
-  player.onerror = ()=>{ if(_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing'); _currentSpeakBtn=null; toast('❌ 朗读失败，请检查系统 TTS 引擎'); };
+  player.onerror = ()=>{ if(_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing'); _currentSpeakBtn=null; toast('❌ 朗读失败：系统 TTS 引擎不可用'); };
   player.src = url;
   const p = player.play();
   if(p && p.catch) p.catch(()=>{ toast('❌ 播放被拦截，请再点一次'); if(_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing'); _currentSpeakBtn=null; });
@@ -508,7 +511,7 @@ function toggleSpeak(text, lang, btn){
 function copyText(t){ return new Promise(r=>{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(()=>r(true)).catch(()=>r(false)); return; } try{ const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); r(ok); }catch(e){ r(false); } }); }
 function openExternal(url){ if(!url){ toast('无链接'); return; } const u=String(url).trim(); if(!/^https?:\/\//i.test(u)){ toast('链接不安全'); return; } if(window.AndroidOpen && AndroidOpen.open){ try{ AndroidOpen.open(u); return; }catch(e){} } try{ const a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),150); }catch(e){ toast('打开失败'); } }
 
-/* ============ 数据源 ============ */
+/* ================= 数据源 ================= */
 const KnowledgeSource = {
   async fetchAll(){ return Promise.all([
     this.fetchWiki().catch(e=>({source:'wiki',error:friendlyErr(e)})),
@@ -561,7 +564,7 @@ const RecommendSource = {
   async fetchTools(){ return [{name:'Obsidian',author:'Markdown 笔记',emoji:'📝',why:'本地化双链笔记工具。',web:()=>'https://obsidian.md/'},{name:'Excalidraw',author:'白板工具',emoji:'✏️',why:'手绘风格在线白板。',web:()=>'https://excalidraw.com/'},{name:'Raycast',author:'启动器',emoji:'⚡',why:'Mac 效率启动器。',web:()=>'https://www.raycast.com/'},{name:'Notion',author:'全能笔记',emoji:'📒',why:'文档、数据库、协作一体。',web:()=>'https://www.notion.so/'},{name:'Logseq',author:'大纲笔记',emoji:'🗂️',why:'开源本地优先。',web:()=>'https://logseq.com/'}]; }
 };
 
-/* ============ 存储业务 ============ */
+/* ================= 存储业务 ================= */
 const LearnStore = {
   getLearned(){ const v = LS.get('learned:'+DAY,[]); return Array.isArray(v)?v:[]; },
   setLearned(arr){ LS.set('learned:'+DAY,arr); },
@@ -607,6 +610,7 @@ const LearnStore = {
   clearAIHistory(){ LS.del('ai-history'); },
   stats(){ let exprCount=0,noteCount=0,thinkCount=0; try{ NativeStore.keys().forEach(k=>{ if(k.startsWith('expr-grade:')) exprCount++; }); }catch(e){} SEED.VALVE_ALL.forEach(v=>{ if(LS.get('note:'+v.q,'')) noteCount++; }); SEED.THINKING.forEach(m=>{ if((LS.get('think-ans:'+m.name,'')||'').trim()) thinkCount++; }); return {learnedEver:this.getAllLearnedEver().length,knowDoneEver:this.getAllKnowDoneEver().length,thinkCount,noteCount,exprCount,wrongCount:this.getWrongBook().length,totalValve:SEED.VALVE_ALL.length,totalWords:SEED.DECKS.reduce((s,d)=>s+(d.count||0),0)}; }
 };
+
 const HealthStore = {
   save(key,val){ try{ LS.set('app_h_'+key,val); }catch(e){} },
   load(key,def){ try{ const s = LS.get('app_h_'+key,null); return s!==null?s:def; }catch(e){ return def; } },
@@ -627,9 +631,12 @@ function saveSportSession(sess,dateStr){ const d = dateStr||todayStr(); const al
 function getBodyHistory(){ return LS.get('app_h_bodyHistory',[]); }
 function saveBodyHistory(h){ LS.set('app_h_bodyHistory',h.slice(-180)); }
 function getYesterdayBody(){ const h = getBodyHistory(); const today = todayStr(); const past = h.filter(x=>x.date<today); return past.length?past[past.length-1]:null; }
+function getCustomSkinSteps(){ const d = HealthStore.load('customSkinSteps',null); if(!d||typeof d!=='object') return {morning:[],night:[]}; return {morning:d.morning||[],night:d.night||[]}; }
+function saveCustomSkinSteps(v){ HealthStore.save('customSkinSteps',v); }
 function getCustomCats(type){ const v = LS.get('app_h_customCats',{expense:[],income:[]}); const arr = type === 'income' ? (v && v.income) : (v && v.expense); return Array.isArray(arr)?arr:[]; }
 function saveCustomCats(v){ LS.set('app_h_customCats',v); }
 
+/* ================= 计划 ================= */
 let PLAN_START;
 (function(){ const s = LS.get('app_h_planStartDate',null); if(s && /^\d{4}-\d{2}-\d{2}$/.test(s)) PLAN_START = new Date(s+'T00:00:00'); else { const t = new Date(); t.setHours(0,0,0,0); PLAN_START = t; LS.set('app_h_planStartDate',localDateStr(t)); } })();
 function setPlanStart(date){ if(!date) return; PLAN_START = new Date(localDateStr(date)+'T00:00:00'); LS.set('app_h_planStartDate',localDateStr(PLAN_START)); }
@@ -646,6 +653,7 @@ function getPlanDayInfo(date=new Date()){
 }
 function getCompletedTrainingCount(){ const sessions = getSportSessions(); let count = 0; Object.keys(sessions).forEach(d=>{ const s = sessions[d]; if(s && s.endTs && s.sets){ const t = Object.values(s.sets).reduce((a,b)=>a+(Array.isArray(b)?b.length:0),0); if(t>=3) count++; } }); return count; }
 
+/* ================= Body / Supp / Profile ================= */
 const BODY_DEFAULT = { height:165,weight:51.7,bodyFat:33,shoulder:38,neck:32,bust:86,underbust:74,waist:68,abdomen:78,hip:92,upperArm:27,forearm:23,wrist:15.5,thigh:52,calf:34,ankle:21,armLength:56,legLength:96,inseam:72,footLength:23.5,footWidth:9 };
 const body = {...BODY_DEFAULT, ...HealthStore.load('body',{})};
 const BODY_GROUPS = [
@@ -671,6 +679,114 @@ let transactions = LS.get('app_h_transactions',[]);
 let clothes = LS.get('app_h_clothes',[]);
 let skinProducts = HealthStore.load('skinProducts',{});
 
+function getDayIndexForSkin(){ const d = new Date().getDay(); return d === 0 ? 7 : d; }
+const STABLE_DAY_NOTES = ['AM 维C + B5 + C霜 + 防晒；PM 壬二酸 + C霜','AM 烟酰胺 + B5 + C霜 + 防晒；PM B5 + C霜','AM 维C + B5 + 防晒；PM 壬二酸 + B5 + C霜','AM 烟酰胺 + C霜 + 防晒；PM B5 + C霜','AM 维C + B5 + 防晒；PM 壬二酸 + C霜','AM 烟酰胺 + B5 + C霜 + 防晒；PM B5 + C霜','AM B5 + C霜 + 防晒；PM 视皮肤稳定情况决定壬二酸'];
+function buildStableSteps(){
+  const day = getDayIndexForSkin(); const mk = (id,name,note)=>({id,name,note:note||''});
+  switch(day){
+    case 1: return {morning:[mk('m_clean','洁面'),mk('m_vc','维C 精华','抗氧化'),mk('m_b5','B5 精华','舒缓修护'),mk('m_cream','面霜'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_aza','壬二酸'),mk('n_cream','面霜')]};
+    case 2: return {morning:[mk('m_clean','洁面'),mk('m_niac','烟酰胺精华'),mk('m_b5','B5 精华'),mk('m_cream','面霜'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_b5','B5 精华','修护日'),mk('n_cream','面霜')]};
+    case 3: return {morning:[mk('m_clean','洁面'),mk('m_vc','维C 精华'),mk('m_b5','B5 精华'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_aza','壬二酸'),mk('n_b5','B5 精华'),mk('n_cream','面霜')]};
+    case 4: return {morning:[mk('m_clean','洁面'),mk('m_niac','烟酰胺精华'),mk('m_cream','面霜'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_b5','B5 精华','修护日'),mk('n_cream','面霜')]};
+    case 5: return {morning:[mk('m_clean','洁面'),mk('m_vc','维C 精华'),mk('m_b5','B5 精华'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_aza','壬二酸'),mk('n_cream','面霜')]};
+    case 6: return {morning:[mk('m_clean','洁面'),mk('m_niac','烟酰胺精华'),mk('m_b5','B5 精华'),mk('m_cream','面霜'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_b5','B5 精华','修护日'),mk('n_cream','面霜')]};
+    case 7: default: return {morning:[mk('m_clean','洁面'),mk('m_b5','B5 精华','全天修护'),mk('m_cream','面霜'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_aza','壬二酸（视情况）'),mk('n_cream','面霜')]};
+  }
+}
+function buildAcneSteps(){ const mk = (id,name,note)=>({id,name,note:note||''}); return {morning:[mk('m_clean','洁面'),mk('m_act','烟酰胺 或 维C'),mk('m_b5','B5 精华'),mk('m_cream','面霜'),mk('m_sun','防晒')],night:[mk('n_clean','洁面'),mk('n_aza','壬二酸（局部）','只涂痘痘区域'),mk('n_b5','B5 精华'),mk('n_cream','面霜')]}; }
+function buildSevereSteps(){ const mk = (id,name,note)=>({id,name,note:note||''}); return {morning:[mk('m_clean','清水/极温和清洁'),mk('m_b5','B5 精华'),mk('m_cream','简单保湿霜'),mk('m_sun','防晒（物理）')],night:[mk('n_clean','温和清洁'),mk('n_b5','B5 精华'),mk('n_cream','简单保湿霜')]}; }
+SKIN_STATES.stable.getSteps = buildStableSteps;
+SKIN_STATES.acne.getSteps = buildAcneSteps;
+SKIN_STATES.severe.getSteps = buildSevereSteps;
+
+function analyzeIngredients(name,ingrText){
+  const reasons = []; let level = 'ok';
+  const setLevel = (lv,reason)=>{ if(lv === 'avoid') level = 'avoid'; else if(lv === 'caution' && level !== 'avoid') level = 'caution'; if(reason) reasons.push(reason); };
+  const t = ingrText || '';
+  if(/过氧化苯甲酰|benzoyl/i.test(t)){ if(profile.sensitivity === '高') setLevel('avoid','含过氧化苯甲酰，敏感肌建议避免'); else if(profile.sensitivity === '中') setLevel('caution','含过氧化苯甲酰，建议仅局部点涂'); else reasons.push('含过氧化苯甲酰，适合痘痘期局部使用'); }
+  if(/壬二酸|azelaic/i.test(t)){ if(profile.sensitivity === '高') setLevel('caution','含壬二酸，敏感肌需先建立耐受'); else setLevel('caution','含壬二酸，初期可能刺痒'); }
+  if(/烟酰胺|niacinamide/i.test(t)){ if(profile.sensitivity === '高') setLevel('caution','含烟酰胺，敏感肌可能刺痛'); else reasons.push('含烟酰胺，控油提亮'); }
+  if(/抗坏血酸|ascorbic|维c/i.test(t)){ if(profile.sensitivity === '高') setLevel('caution','含维C，敏感肌需耐受'); else reasons.push('含维C，抗氧化'); }
+  if(/神经酰胺|泛醇|积雪草|透明质酸|角鲨烷/i.test(t)) reasons.push('含修复屏障成分');
+  if(level === 'ok' && !reasons.length) reasons.push('未检测到明显风险成分');
+  return {level,reasons};
+}
+function saveSkinProducts(){ HealthStore.save('skinProducts',skinProducts); }
+
+/* ================= 运动计划 ================= */
+function mkEx(code,sets,reps,load){ return {code,sets,reps,dose:reps,load,...(EXERCISES[code]||{name:code,how:'',breath:''})}; }
+function buildPlanByContent(wi,dow){
+  const dayNames = ['臀腿 + 核心','上肢 + 圆肩 + 颈肩稳定','恢复日 + 低强度有氧','全身功能性力量','体态修正 + 臀中肌 + 核心','游泳','主动恢复'];
+  const durations = ['45–55 分钟','40–50 分钟','40–50 分钟','45–55 分钟','40–45 分钟','40–60 分钟','40–50 分钟'];
+  const label = dayNames[dow], duration = durations[dow];
+  let ex = [], warm = [], stretch = [], tips = [];
+  if(dow === 0){ warm = [mkEx('猫牛式',1,'10次','自重'),mkEx('髋关节绕环',1,'10次','自重')]; ex = [mkEx('椅子箱式深蹲',3,'8–10次','自重'),mkEx('臀桥',3,'12–15次','自重'),mkEx('弹力带侧向走',2,'8–10步/方向','轻阻力'),mkEx('Pallof抗旋转推',2,'10次/侧','轻阻力'),mkEx('Dead Bug',2,'6次/侧','自重')]; stretch = [mkEx('胸肌拉伸',1,'20–30秒','自重'),mkEx('髋屈肌拉伸',1,'20–30秒','自重')]; tips = ['降蹲不要到最低位']; }
+  else if(dow === 1){ warm = [mkEx('猫牛式',1,'10次','自重')]; ex = [mkEx('弹力带划船',3,'10–12次','轻中阻力'),mkEx('斜板墙壁俯卧撑',2,'8–12次','自重'),mkEx('墙面滑臂',2,'8–10次','自重'),mkEx('弹力带肩外旋',2,'12次','轻阻力'),mkEx('下巴回收',2,'8次每次5秒','自重')]; stretch = [mkEx('胸肌拉伸',1,'20–30秒','自重')]; tips = ['划船时肩膀不耸']; }
+  else if(dow === 2){ ex = [mkEx('快走',1,'25–35分钟','低强度'),mkEx('猫牛式',1,'10次','轻柔'),mkEx('腹式呼吸',1,'2分钟','自重')]; tips = ['不要追求强度']; }
+  else if(dow === 3){ warm = [mkEx('猫牛式',1,'10次','自重')]; ex = [mkEx('椅子箱式深蹲',3,'8–10次','自重'),mkEx('弹力带划船',3,'10–12次','轻中阻力'),mkEx('臀桥',3,'12次','自重'),mkEx('Pallof抗旋转推',3,'8次/侧','轻阻力'),mkEx('Dead Bug',2,'6次/侧','自重')]; stretch = [mkEx('胸肌拉伸',1,'20–30秒','自重')]; tips = ['动作要慢']; }
+  else if(dow === 4){ ex = [mkEx('弹力带侧向走',2,'10步/方向','轻阻力'),mkEx('弹力带划船',2,'12次','轻阻力'),mkEx('墙面滑臂',2,'8次','自重'),mkEx('Dead Bug',2,'6次/侧','自重'),mkEx('散步',1,'15–20分钟','轻松')]; stretch = [mkEx('胸肌拉伸',1,'20–30秒','自重')]; tips = ['重点在动作控制']; }
+  else if(dow === 5){ ex = [mkEx('游泳',4,'25m','漂浮/打腿'),mkEx('自由泳',4,'25m','单臂/侧转呼吸'),mkEx('仰泳',1,'10分钟','背部漂浮')]; stretch = [mkEx('胸肌拉伸',1,'20–30秒','自重'),mkEx('小腿拉伸',1,'20–30秒','自重')]; tips = ['先学习身体位置']; }
+  else { ex = [mkEx('散步',1,'20–30分钟','轻松'),mkEx('Dead Bug',2,'6次/侧','自重'),mkEx('弹力带划船',2,'12次','轻阻力'),mkEx('肩胛放松',1,'10次','自重')]; stretch = [mkEx('胸肌拉伸',1,'20–30秒','自重')]; tips = ['让身体恢复']; }
+  return {key:'d'+dow,label,icon:'✅',duration,summary:label,isTraining:true,warmup:warm,stretch,exercises:ex,tips};
+}
+function buildRestPlan(sub){
+  const map = { leave:{label:'请假',icon:'📝'}, period:{label:'经期（休息）',icon:'🌸'}, rest:{label:'休息',icon:'😴'} };
+  const info = map[sub] || map.rest;
+  return {key:sub,label:info.label,icon:info.icon,duration:'—',summary:'今日不训练 · 训练计数自动顺延',isTraining:false,warmup:[],stretch:[],exercises:[],tips:['今日完全休息','保证睡眠与饮水']};
+}
+function currentPlan(){
+  const plan = getPlanDayInfo(new Date());
+  const ov = getOverride(new Date());
+  if(ov === 'leave' || ov === 'period' || ov === 'rest') return buildRestPlan(ov);
+  if(ov === 'swim') return {key:'swim',label:'游泳代替今日计划',icon:'🏊',duration:'40–60 分钟',summary:'游泳代替今日计划',isTraining:true,warmup:[],stretch:[mkEx('胸肌拉伸',1,'20–30秒','自重')],exercises:[mkEx('游泳',4,'25m','自由'),mkEx('自由泳',4,'25m','单臂')],tips:['以水感与技术为主']};
+  if(ov === 'reduced'){ const base = buildPlanByContent(1,0); return {...base,label:'身体不适（减量）',icon:'🔻',duration:'20–30 分钟',summary:'减量 · 组数减少',exercises:base.exercises.map(x=>({...x,sets:Math.max(1,x.sets-1)}))}; }
+  if(!plan) return buildRestPlan('rest');
+  return buildPlanByContent(plan.weekIndex,plan.dayOfWeek);
+}
+
+/* ================= 身材/衣服分析 ================= */
+function calcShape(){
+  const s = body.shoulder, w = body.waist, h = body.hip;
+  const whr = w/h, shr = s/h;
+  if(whr <= 0.76){
+    if(Math.abs(shr-1) < 0.06) return {name:'沙漏型',desc:'肩臀接近，腰线明显'};
+    if(shr > 1.06) return {name:'倒三角型',desc:'肩部较宽'};
+    return {name:'梨形',desc:'臀胯较宽'};
+  }
+  if(shr >= 1.06) return {name:'倒三角型',desc:'肩部偏宽'};
+  if(h-s >= 6) return {name:'梨形',desc:'臀胯偏宽'};
+  return {name:'矩形',desc:'肩腰臀比例接近'};
+}
+function fitEase(ease,soft,hard){
+  if(ease < -hard) return {k:'tight',t:'偏紧',color:'#FF6B5B',bg:'#FFEDEA'};
+  if(ease < -soft) return {k:'slight-tight',t:'略紧',color:'#D98A0B',bg:'#FFF4E0'};
+  if(ease <= soft) return {k:'ok',t:'合身',color:'#1FBFA9',bg:'#E7F9F5'};
+  if(ease <= hard) return {k:'slight-loose',t:'略松',color:'#4A9EFF',bg:'#EAF3FF'};
+  return {k:'loose',t:'偏松',color:'#8B7CF6',bg:'#F1EEFF'};
+}
+function analyzeGarment(){
+  const cat = state.closetCat || 'top';
+  const sizeType = getSizeType(cat);
+  if(sizeType === 'free') return null;
+  const g = state.garmentDraft || {};
+  const rows = [];
+  if(sizeType === 'cloth'){
+    if(g.bust){ const e = g.bust - body.bust; rows.push({label:'胸围松量',value:(e>0?'+':'')+e.toFixed(1)+' cm',fit:fitEase(e,2,6)}); }
+    if(g.shoulder){ const d = body.shoulder - g.shoulder; rows.push({label:'肩宽差',value:d>0?`身体宽 ${d.toFixed(1)} cm`:`衣服宽 ${(-d).toFixed(1)} cm`,fit:fitEase(d,1.5,3.5)}); }
+  }
+  if(sizeType === 'pants'){
+    if(g.waist){ const e = g.waist - body.waist; rows.push({label:'腰围松量',value:(e>0?'+':'')+e.toFixed(1)+' cm',fit:fitEase(e,2,5)}); }
+    if(g.hip){ const e = g.hip - body.hip; rows.push({label:'臀围松量',value:(e>0?'+':'')+e.toFixed(1)+' cm',fit:fitEase(e,2.5,6)}); }
+  }
+  if(sizeType === 'shoes'){
+    if(g.footLength){ const e = g.footLength - body.footLength; rows.push({label:'脚长松量',value:(e>0?'+':'')+e.toFixed(1)+' cm',fit:fitEase(e,0.4,0.9)}); }
+  }
+  const hardTight = rows.filter(r=>r.fit.k === 'tight' || r.fit.k === 'loose').length;
+  const score = Math.max(0, 100 - hardTight*8);
+  return {rows,alerts:[],suggests:[],score,sizeType};
+}
+
+/* ================= 账本 ================= */
 function parseChineseAmount(str){
   const cn = { '零':'0','一':'1','二':'2','两':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9' };
   let s = String(str||'').replace(/[零一二两三四五六七八九]/g,ch=>cn[ch]||ch);
@@ -760,7 +876,7 @@ function doImportCsv(file){
   reader.readAsText(file,'UTF-8');
 }
 
-/* ============ DeckLoader ============ */
+/* ================= DeckLoader ================= */
 const DeckLoader = {
   loaded:{}, loading:{},
   load(deckId){
@@ -785,7 +901,7 @@ const DeckLoader = {
   async ensureForReview(){ const map = LS.get('word-deck-map',{}); const ids = new Set(Object.values(map)); if(!ids.size){ for(const d of SEED.DECKS) await this.load(d.id).catch(()=>[]); return; } await Promise.all([...ids].map(id=>this.load(id).catch(()=>[]))); }
 };
 
-/* ============ AI ============ */
+/* ================= AI ================= */
 const AI = {
   get provider(){ return LS.get('ai-provider','none'); },
   get apiKey(){ return LS.get('ai-key',''); },
@@ -810,7 +926,7 @@ const AI = {
   async gradeExpression(scene,q,guide,answer){ if(!this.enabled()) return null; const s = `表达训练教练。场景「${scene}」\n题目：${q}\n要求：${guide}\n只输出 JSON：{"score":0-100,"level":"","strengths":[],"issues":[],"improved":"","advice":""}`; return this.parseJSON(await this.call(s,'用户的回答：\n'+answer,1200,0.3)); }
 };
 
-/* ============ 缓存 ============ */
+/* ================= 缓存 ================= */
 const CACHE_KEY_KNOWLEDGE = 'knowledge-v11';
 function getLastRefreshBoundary(){ const bj = bjDate(); const h = bj.getUTCHours(); const today0 = Date.UTC(bj.getUTCFullYear(),bj.getUTCMonth(),bj.getUTCDate()); const lastHour = h >= 19 ? 19 : (h >= 12 ? 12 : 0); return today0 + lastHour*3600*1000 - 8*3600*1000; }
 const CacheStore = {
@@ -820,7 +936,7 @@ const CacheStore = {
   getTime(key){ const c = LS.get('cache:'+key,null); return c && c.t ? new Date(c.t).toLocaleString('zh-CN',{hour12:false}) : '从未'; }
 };
 
-/* ============ State ============ */
+/* ================= State ================= */
 const state = {
   tab:'home', studySub:'today', englishSub:'today',
   englishDeck: LS.get('english-deck','')||'builtin', englishPage: 1, valvePage: 1,
@@ -863,7 +979,7 @@ function updateTopbar(){
 const TABS = [{id:'home',icon:'🏠',label:'首页'},{id:'study',icon:'📚',label:'学习'},{id:'life',icon:'✨',label:'生活'},{id:'discover',icon:'🌍',label:'发现'},{id:'me',icon:'👤',label:'我的'}];
 function renderTabs(){ tabbar.innerHTML = TABS.map(t=>`<button class="tab ${t.id === state.tab ? 'on' : ''}" data-tab="${t.id}"><span class="tab-icon">${t.icon}</span><span>${t.label}</span></button>`).join(''); }
 
-/* ============ 首页 ============ */
+/* ================= 首页 ================= */
 function homeView(){
   const now = new Date(); const t = todayStr();
   const dStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
@@ -875,8 +991,6 @@ function homeView(){
   const ovMap = {swim:'游泳',reduced:'减量训练',period:'经期休息',leave:'请假',rest:'休息'};
   let sportText = plan.label; if(ov && ovMap[ov]) sportText = ovMap[ov];
   const showProtein = (!ov) || ov === 'swim' || ov === 'reduced';
-
-  // 精简：只保留 6 个核心条目
   const fixedItems = [
     {time:'07:40',text:'早饭（记得吃补剂）',action:'supplement',checkKey:`home_${t}_breakfast`},
     {time:'10:00',text:'学习',action:'study',checkKey:`home_${t}_study`},
@@ -908,10 +1022,10 @@ function homeView(){
   <div class="card" style="padding:8px;"><div class="body-state-grid">${bodyStateHtml}</div></div>
   <div class="sec-title" style="margin:10px 4px 6px;">时间线 <span class="muted">点左侧圆圈打卡</span></div>
   <div class="home-tl-wrap">${tlHtml}</div>
-  <div class="foot-note">数据保存在本设备 · 请定期备份</div>`;
+  <div style="text-align:center;font-size:11.5px;color:#aab0c0;padding:14px 0 4px;">数据保存在本设备 · 请定期备份</div>`;
 }
 
-/* ============ 学习 ============ */
+/* ================= 学习 ================= */
 async function studyView(){
   const sub = state.studySub;
   const subs = [{id:'today',label:'今日'},{id:'english',label:'英语'},{id:'valve',label:'专业'},{id:'general',label:'每日知识'},{id:'logic',label:'逻辑'},{id:'weekly',label:'周测'},{id:'alltest',label:'总测'}];
@@ -980,8 +1094,8 @@ function wordCard(w,i,isDone,isDoneToday){
       </div>
     </div>
     <div style="font-size:14px;color:#333a4d;margin-top:8px;font-weight:600;line-height:1.55;${isDone?'text-decoration:line-through;color:#aab0c0;':''}">${esc(w.cn||'')}</div>
-    ${w.scene?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #eceef4;"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#2b3244;line-height:1.55;"><span style="flex:1">${esc(w.scene)}</span><button style="border:0;background:#eef0ff;color:var(--brand);width:32px;height:32px;border-radius:9px;font-size:14px;cursor:pointer;flex:none;font-weight:700;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" title="朗读例句" onclick="event.stopPropagation();">🔊</button></div><div style="font-size:12.5px;color:var(--sub);margin-top:4px;">${esc(w.sceneCn||'')}</div></div>`:''}
-    <button style="position:absolute;top:12px;right:12px;border:0;background:#eef0ff;color:var(--brand);width:34px;height:34px;border-radius:11px;font-size:15px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US" title="朗读单词" onclick="event.stopPropagation();">🔊</button>
+    ${w.scene?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #eceef4;"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#2b3244;line-height:1.55;"><span style="flex:1">${esc(w.scene)}</span><button style="border:0;background:#eef0ff;color:var(--brand);width:32px;height:32px;border-radius:9px;font-size:14px;cursor:pointer;flex:none;font-weight:700;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" onclick="event.stopPropagation();">🔊</button></div><div style="font-size:12.5px;color:var(--sub);margin-top:4px;">${esc(w.sceneCn||'')}</div></div>`:''}
+    <button style="position:absolute;top:12px;right:12px;border:0;background:#eef0ff;color:var(--brand);width:34px;height:34px;border-radius:11px;font-size:15px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US" onclick="event.stopPropagation();">🔊</button>
   </div>`;
 }
 function valveSection(){
@@ -993,7 +1107,7 @@ function valveSection(){
   else if(cat === '全部'){ const unlearned = SEED.VALVE_ALL.filter(v=>!knowDoneEver.has(v.q)); const pageSize = state.valvePage * PAGE_SIZE; list = unlearned.slice(0,Math.max(DAILY_VALVE_COUNT,pageSize)); titleSuffix = `待掌握 · ${list.length}/${unlearned.length}`; }
   else { list = SEED.VALVE[cat] || []; titleSuffix = cat + ' · ' + list.length + ' 条'; }
   const cats = ['全部', ...Object.keys(SEED.VALVE)];
-  return `<div class="card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:0;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:6px;">VALVE KNOWLEDGE</div><div style="font-size:18px;font-weight:750;margin-bottom:8px;">${SEED.VALVE_ALL.length} 条专业知识</div><div style="font-size:13px;opacity:.92;">已掌握 ${LearnStore.getAllKnowDoneEver().length} 条</div></div><div class="search-box"><span style="font-size:15px;opacity:.5;">🔍</span><input type="search" class="search-input" id="valveSearch" placeholder="搜索…" value="${esc(q)}"></div><div class="chips">${cats.map(c=>`<button class="chip ${c===cat&&!q.trim()?'on':''}" data-act="valveCat" data-cat="${esc(c)}">${esc(c)}${c!=='全部'?` · ${(SEED.VALVE[c]||[]).length}`:''}</button>`).join('')}</div><div class="sec-title">${titleSuffix} <span class="muted">点卡片展开</span></div>${list.length?list.map((v,i)=>knowCard(v,i,knowDoneEver.has(v.q),knowDoneToday.has(v.q))).join(''):'<div class="tip-card">没有找到。</div>'}`;
+  return `<div class="card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:0;"><div style="font-size:11px;font-weight:750;opacity:.75;margin-bottom:6px;">VALVE KNOWLEDGE</div><div style="font-size:18px;font-weight:750;margin-bottom:8px;">${SEED.VALVE_ALL.length} 条专业知识</div><div style="font-size:13px;opacity:.92;">已掌握 ${LearnStore.getAllKnowDoneEver().length} 条</div></div><div class="search-box"><span style="font-size:15px;opacity:.5;">🔍</span><input type="search" class="search-input" id="valveSearch" placeholder="搜索…" value="${esc(q)}"></div><div class="chips">${cats.map(c=>`<button class="chip ${c===cat&&!q.trim()?'on':''}" data-act="valveCat" data-cat="${esc(c)}">${esc(c)}${c!=='全部'?` · ${(SEED.VALVE[c]||[]).length}`:''}</button>`).join('')}</div><div class="sec-title">${titleSuffix} <span class="muted">点卡片展开</span></div>${list.length?list.map((v,i)=>knowCard(v,i,knowDoneEver.has(v.q),knowDoneToday.has(v.q))).join(''):'<div class="tip-card">没有找到。</div>'}`;
 }
 function knowCard(v,i,isDone,isDoneToday){
   const open = state.openKnow === v.q;
@@ -1065,7 +1179,7 @@ async function startAllTest(){
   renderReviewSheet();
 }
 
-/* ============ 生活 ============ */
+/* ================= 生活 ================= */
 async function lifeView(){
   const sub = state.lifeSub || 'calendar';
   const mainTabs = [{id:'calendar',label:'日历'},{id:'money',label:'记账'},{id:'sport',label:'运动'},{id:'closet',label:'衣橱'},{id:'care',label:'护肤'}];
@@ -1197,23 +1311,17 @@ function careSkinPane(){
   const s = SKIN_STATES[skinState];
   const day = getDayIndexForSkin();
   const dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
-  const steps = {
-    'm_clean':{name:'洁面'}, 'm_vc':{name:'维C 精华'}, 'm_b5':{name:'B5 精华'},
-    'm_cream':{name:'面霜'}, 'm_sun':{name:'防晒'}, 'n_clean':{name:'洁面'},
-    'n_aza':{name:'壬二酸'}, 'n_cream':{name:'面霜'}
+  const steps = s.getSteps();
+  const renderSteps = (title, list) => {
+    const html = list.map(it=>{ const checkKey = `skin_${todayStr()}_${it.id}`; return `<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;"><span class="check" data-check-key="${checkKey}" style="margin-top:2px"></span><div style="flex:1;"><div style="font-size:14px;">${esc(it.name)}${it.note?` <span style="font-size:11.5px;color:var(--sub)">${esc(it.note)}</span>`:''}</div></div></div>`; }).join('');
+    return `<div style="font-size:13px;font-weight:700;margin-bottom:8px;">${title} · ${list.length} 步</div>${html}`;
   };
-  const list = ['m_clean','m_vc','m_b5','m_cream','m_sun'];
-  const nightList = ['n_clean','n_aza','n_cream'];
-  const renderSteps = (title, ids) => {
-    const html = ids.map(id=>{ const checkKey = `skin_${todayStr()}_${id}`; return `<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;"><span class="check" data-check-key="${checkKey}" style="margin-top:2px"></span><div style="flex:1;"><div style="font-size:14px;">${esc(steps[id].name)}</div></div></div>`; }).join('');
-    return `<div style="font-size:13px;font-weight:700;margin-bottom:8px;">${title}</div>${html}`;
-  };
-  return `<div class="card" style="background:linear-gradient(135deg,#FF6FA5,#FFA1C4);color:#fff;border:0;"><div style="font-size:11px;font-weight:750;opacity:.75;margin-bottom:4px;">${s.icon} 皮肤状态</div><div style="font-size:18px;font-weight:750;margin-bottom:4px;">${s.label}</div><div style="font-size:13px;opacity:.92;">${esc(s.desc)}</div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">切换状态</div>${Object.values(SKIN_STATES).map(v=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:${skinState === v.key?'var(--pink-soft)':'#F7F8FC'};margin-bottom:6px;cursor:pointer;" data-act="setSkin" data-skin="${v.key}"><span style="font-size:16px;">${v.icon}</span><span style="flex:1;font-size:13.5px;">${v.label}</span>${skinState === v.key?'<span style="color:var(--pink);font-weight:700;">✓</span>':''}</div>`).join('')}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:6px;">💡 今日建议 <span style="font-size:11.5px;color:var(--sub)">${dayNames[day-1]}</span></div><p style="font-size:12.5px;color:#5A6176;line-height:1.65;">${esc(s.tips)}</p></div><div class="card">${renderSteps('☀️ 早间流程', list)}</div><div class="card">${renderSteps('🌙 晚间流程', nightList)}</div>`;
+  return `<div class="card" style="background:linear-gradient(135deg,#FF6FA5,#FFA1C4);color:#fff;border:0;"><div style="font-size:11px;font-weight:750;opacity:.75;margin-bottom:4px;">${s.icon} 皮肤状态</div><div style="font-size:18px;font-weight:750;margin-bottom:4px;">${s.label}</div><div style="font-size:13px;opacity:.92;">${esc(s.desc)}</div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">切换状态</div>${Object.values(SKIN_STATES).map(v=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:${skinState === v.key?'var(--pink-soft)':'#F7F8FC'};margin-bottom:6px;cursor:pointer;" data-act="setSkin" data-skin="${v.key}"><span style="font-size:16px;">${v.icon}</span><span style="flex:1;font-size:13.5px;">${v.label}</span>${skinState === v.key?'<span style="color:var(--pink);font-weight:700;">✓</span>':''}</div>`).join('')}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:6px;">💡 今日建议 <span style="font-size:11.5px;color:var(--sub)">${dayNames[day-1]}</span></div><p style="font-size:12.5px;color:#5A6176;line-height:1.65;">${esc(s.tips)}</p></div><div class="card">${renderSteps('☀️ 早间流程', steps.morning)}</div><div class="card">${renderSteps('🌙 晚间流程', steps.night)}</div>`;
 }
 function careSuppPane(){ const todaySupps = getTodaySupps(); const suppHtml = todaySupps.length?todaySupps.map(s=>`<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fff;border-radius:14px;margin-bottom:8px;"><span class="check" data-act="takeSupp" data-uid="${s._uid}"></span><div style="width:38px;height:38px;border-radius:12px;background:var(--pink-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">💊</div><div style="flex:1;"><div style="font-size:14px;">${esc(s.name)}</div><div style="font-size:11.5px;color:var(--sub);margin-top:2px;">${esc(s.dose||'')} · ${esc(s.time||'')}</div></div></div>`).join(''):'<p style="color:#8A90A2;font-size:12.5px;padding:8px 0;text-align:center;">🎉 今日补剂都吃完了！</p>'; return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">今日补剂 <span style="color:var(--sub);font-size:11.5px">${todaySupps.length} 项 · 勾选即消除</span></div>${suppHtml}</div>`; }
 function careSuppLibPane(){ const list = suppLib.map(s=>`<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fff;border-radius:14px;margin-bottom:8px;"><div style="width:38px;height:38px;border-radius:12px;background:var(--pink-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">💊</div><div style="flex:1;"><div style="font-size:14px;">${esc(s.name)}</div><div style="font-size:11.5px;color:var(--sub);margin-top:2px;">${esc(s.dose||'')} · ${esc(s.time||'')}</div></div><button class="del-tx" data-act="delSuppLib" data-id="${s.id}">✕</button></div>`).join('') || '<p style="color:#8A90A2;font-size:12.5px;">补剂库为空</p>'; return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">补剂库 <span style="color:var(--sub);font-size:11.5px">${suppLib.length} 项</span></div>${list}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">添加补剂</div><div class="dim-row"><span class="lb">名称</span><input type="text" id="suppLibName" style="width:150px"></div><div class="dim-row"><span class="lb">剂量</span><input type="text" id="suppLibDose" style="width:150px"></div><div class="dim-row"><span class="lb">服用时间</span><input type="text" id="suppLibTime" style="width:150px"></div><button class="btn-primary" data-act="addSuppLib" style="margin-top:10px;background:linear-gradient(135deg,#FF6FA5,#FFA1C4)">＋ 添加到补剂库</button></div>`; }
 
-/* ============ 发现 ============ */
+/* ================= 发现 ================= */
 async function discoverView(){
   const sub = state.discoverSub;
   const subs = [{id:'news',label:'今日世界'},{id:'express',label:'表达'},{id:'joke',label:'笑话'},{id:'recommend',label:'推荐'}];
@@ -1247,8 +1355,9 @@ async function expressSection(){
   if(!state.storyResults.length && !state.storyLoading){ state.storyLoading = true; StorySource.fetchAll().then(r=>{ state.storyResults = r||[]; state.storyLoading = false; render({keepScroll:true}); }).catch(()=>{ state.storyLoading = false; render({keepScroll:true}); }); }
   const yiyanBlock = state.yiyanLoading || !state.yiyanData ? `<div class="loading-card" style="padding:16px;"><div style="font-size:22px;animation:pulse 1.2s infinite;">💬</div></div>` : (state.yiyanData.error ? `<div class="card"><div class="err-inline">❌ ${esc(state.yiyanData.error)}</div><button class="btn ghost" style="margin-top:8px;" data-act="refreshYiyan">🔄 重试</button></div>` : `<div class="card" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;"><div style="font-size:14.5px;line-height:1.7;color:#b45309;font-weight:600;">${esc(state.yiyanData.text)}</div>${state.yiyanData.from?`<div style="font-size:12px;color:#92400e;text-align:right;margin-top:6px;">—— ${esc(state.yiyanData.from)}</div>`:''}<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><button class="btn ghost" style="background:#b45309;color:#fff;" data-act="speak" data-text="${esc(state.yiyanData.text)}" data-lang="zh-CN">🔊 朗读</button><button class="btn ghost" data-act="refreshYiyan">🔄 换一条</button>${!yiyanDone?`<button class="btn ghost" data-act="markYiyanDone">✓ 已读</button>`:'<span style="align-self:center;font-size:11.5px;color:#92400e;font-weight:650;">✓ 今日已读</span>'}</div></div>`);
   const todayPassage = dailyPick(SEED.EXPRESS_PASSAGES,1,41)[0];
-  return `<div class="card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:0;"><div style="font-size:11px;font-weight:750;opacity:.75;margin-bottom:6px;">📖 今日诗词</div><div style="font-size:18px;font-weight:750;margin-bottom:6px;">${esc(todayPassage.title)}</div><div style="font-size:15px;line-height:1.9;opacity:.95;">${esc(todayPassage.text)}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;"><button class="btn" style="background:rgba(255,255,255,.9);color:var(--brand);" data-act="speak" data-text="${esc(todayPassage.text)}" data-lang="zh-CN">🔊 朗读</button>${!passageDone?`<button class="btn" style="background:rgba(255,255,255,.18);color:#fff;" data-act="markPassageDone">✓ 读完了</button>`:''}</div></div><div class="sec-title">中文金句</div>${yiyanBlock}<div class="sec-title">英文名言</div>${state.quoteLoading || !state.quoteResults.length ? `<div class="loading-card" style="padding:16px;">💬</div>` : state.quoteResults.map(r=>{ if(!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const q = r.data; return `<div class="card" style="padding:12px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;line-height:1.7;color:#3b0764;font-weight:600;font-style:italic;margin-top:4px;">"${esc(q.text)}"</div>${q.cn?`<div style="font-size:12px;line-height:1.6;color:#6b21a8;margin-top:6px;">${esc(q.cn)}</div>`:''}<div style="font-size:12px;color:#6b21a8;margin-top:6px;text-align:right;">—— ${esc(q.author||'Unknown')}</div><div style="display:flex;gap:6px;margin-top:8px;"><button class="btn ghost" data-act="speak" data-text="${esc(q.text)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">英文短文</div>${state.storyLoading || !state.storyResults.length ? `<div class="loading-card" style="padding:16px;">📚</div>` : state.storyResults.map(r=>{ if(!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const s = r.data; return `<div class="card" style="padding:12px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;font-weight:750;color:#065f46;line-height:1.5;margin-top:4px;">${esc(s.title)}</div><div style="font-size:12.5px;line-height:1.65;color:#064e3b;margin-top:6px;">${esc((s.preview||'').slice(0,180))}...</div><div style="display:flex;gap:6px;margin-top:8px;"><button class="btn ghost" data-act="speak" data-text="${esc(s.preview)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">今日场景练习</div><div class="card"><div style="display:inline-block;font-size:11px;font-weight:750;color:#b45309;background:#fef3c7;padding:3px 9px;border-radius:6px;margin-bottom:8px;">${esc(todayScene.cat)}</div><div class="know-q">${esc(todayScene.q)}</div><div style="margin-top:8px;padding:10px 12px;background:#f8f9fd;border-left:3px solid var(--brand);border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.65;color:#4b5265;"><b>要求：</b>${esc(todayScene.guide)}</div><textarea class="answer-input" id="exprAnswer" placeholder="写下你的回答…">${esc(savedAnswer)}</textarea><div style="display:flex;gap:8px;margin-top:8px;"><button class="btn primary" data-act="gradeAnswer" data-scene="${esc(todayScene.cat)}" data-q="${esc(todayScene.q)}" data-guide="${esc(todayScene.guide)}">${savedGrade?'🔄 重新评分':'✨ 让 AI 评分'}</button></div><div id="gradeResult"></div></div>`;
+  return `<div class="card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:0;"><div style="font-size:11px;font-weight:750;opacity:.75;margin-bottom:6px;">📖 今日诗词</div><div style="font-size:18px;font-weight:750;margin-bottom:6px;">${esc(todayPassage.title)}</div><div style="font-size:15px;line-height:1.9;opacity:.95;">${esc(todayPassage.text)}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;"><button class="btn" style="background:rgba(255,255,255,.9);color:var(--brand);" data-act="speak" data-text="${esc(todayPassage.text)}" data-lang="zh-CN">🔊 朗读</button>${!passageDone?`<button class="btn" style="background:rgba(255,255,255,.18);color:#fff;" data-act="markPassageDone">✓ 读完了</button>`:''}</div></div><div class="sec-title">中文金句</div>${yiyanBlock}<div class="sec-title">英文名言</div>${state.quoteLoading || !state.quoteResults.length ? `<div class="loading-card" style="padding:16px;">💬</div>` : state.quoteResults.map(r=>{ if(!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const q = r.data; return `<div class="card" style="padding:12px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;line-height:1.7;color:#3b0764;font-weight:600;font-style:italic;margin-top:4px;">"${esc(q.text)}"</div>${q.cn?`<div style="font-size:12px;line-height:1.6;color:#6b21a8;margin-top:6px;">${esc(q.cn)}</div>`:''}<div style="font-size:12px;color:#6b21a8;margin-top:6px;text-align:right;">—— ${esc(q.author||'Unknown')}</div><div style="display:flex;gap:6px;margin-top:8px;"><button class="btn ghost" data-act="speak" data-text="${esc(q.text)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">英文短文</div>${state.storyLoading || !state.storyResults.length ? `<div class="loading-card" style="padding:16px;">📚</div>` : state.storyResults.map(r=>{ if(!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const s = r.data; return `<div class="card" style="padding:12px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;font-weight:750;color:#065f46;line-height:1.5;margin-top:4px;">${esc(s.title)}</div><div style="font-size:12.5px;line-height:1.65;color:#064e3b;margin-top:6px;">${esc((s.preview||'').slice(0,180))}...</div><div style="display:flex;gap:6px;margin-top:8px;"><button class="btn ghost" data-act="speak" data-text="${esc(s.preview)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">今日场景练习</div><div class="card"><div style="display:inline-block;font-size:11px;font-weight:750;color:#b45309;background:#fef3c7;padding:3px 9px;border-radius:6px;margin-bottom:8px;">${esc(todayScene.cat)}</div><div class="know-q">${esc(todayScene.q)}</div><div style="margin-top:8px;padding:10px 12px;background:#f8f9fd;border-left:3px solid var(--brand);border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.65;color:#4b5265;"><b>要求：</b>${esc(todayScene.guide)}</div><textarea class="answer-input" id="exprAnswer" placeholder="写下你的回答…">${esc(savedAnswer)}</textarea><div style="display:flex;gap:8px;margin-top:8px;"><button class="btn primary" data-act="gradeAnswer" data-scene="${esc(todayScene.cat)}" data-q="${esc(todayScene.q)}" data-guide="${esc(todayScene.guide)}">${savedGrade?'🔄 重新评分':'✨ 让 AI 评分'}</button></div><div id="gradeResult">${renderGradeCard(savedGrade)}</div></div>`;
 }
+function renderGradeCard(g){ if(!g) return ''; if(g.error) return `<div style="background:#fef3c7;border-radius:12px;padding:12px;font-size:12.5px;color:#92400e;">⚠️ ${esc(g.error)}</div>`; const score = g.score||0; const level = g.level||(score>=85?'优秀':score>=70?'良好':score>=55?'合格':'待提升'); return `<div style="background:#fff;border:1px solid #e2e5ff;border-radius:14px;padding:14px;margin-top:12px;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;"><div style="font-size:30px;font-weight:850;color:var(--brand);">${score}<span style="font-size:13px;opacity:.55;">/100</span></div><div style="font-size:12px;font-weight:700;color:var(--brand);">${esc(level)}</div></div>${g.strengths&&g.strengths.length?`<div style="margin-top:8px;"><div style="font-size:12px;font-weight:750;margin-bottom:4px;color:var(--ok);">✅ 优点</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;">${g.strengths.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`:''}${g.issues&&g.issues.length?`<div style="margin-top:8px;"><div style="font-size:12px;font-weight:750;margin-bottom:4px;color:#b45309;">⚠️ 改进</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;">${g.issues.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`:''}</div>`; }
 async function jokeSection(){
   if(!state.jokeResults.length && !state.jokeLoading){ state.jokeLoading = true; JokeSource.fetchAll().then(r=>{ state.jokeResults = r||[]; state.jokeLoading = false; render({keepScroll:true}); }).catch(()=>{ state.jokeLoading = false; render({keepScroll:true}); }); }
   if(state.jokeLoading && !state.jokeResults.length){ return `<div class="loading-card"><div style="font-size:30px;animation:pulse 1.2s infinite;">😄</div></div>`; }
@@ -1274,13 +1383,18 @@ async function recommendSection(){
   return `<div class="chips">${catList.map(c=>`<button class="chip ${c === todayCat?'on':''}" data-act="recCat" data-cat="${esc(c)}">${catEmoji[c]} ${esc(c)}</button>`).join('')}</div>${r?`<div class="card"><span class="src-tag">${catEmoji[todayCat]} ${todayCat} · 每日推荐</span><div style="display:flex;gap:10px;margin-top:6px;"><div style="font-size:32px;line-height:1;">${r.emoji||catEmoji[todayCat]}</div><div style="flex:1;"><div style="font-size:17px;font-weight:750;line-height:1.4;">${esc(r.name)}</div><div style="font-size:12.5px;color:var(--sub);margin-top:3px;">${esc(r.author||'')}</div></div></div><div style="font-size:13.5px;line-height:1.7;color:#3f4658;margin-top:10px;padding-top:10px;border-top:1px dashed #eceef4;">${esc(r.why||'')}</div>${webUrl?`<button class="btn primary wide" style="margin-top:10px;" data-act="openNews" data-url="${esc(webUrl)}">去查看 →</button>`:''}</div>`:`<div class="tip-card">加载中…</div>`}`;
 }
 
-/* ============ 我的 ============ */
+/* ================= 我的 ================= */
 function meView(){
   const stats = LearnStore.stats(); const streak = LearnStore.getStreak(); const hSessions = getSportSessions();
-  return `<div class="hero"><div class="hero-k">我的</div><h1>数据管理</h1>${streak.count>0?`<div style="margin-top:10px"><span class="streak-badge" style="font-size:13px;padding:5px 12px;">🔥 已连续学习 ${streak.count} 天</span></div>`:''}</div><div class="card"><div class="sec-title" style="margin:0 0 8px;">📊 累计数据</div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;border-bottom:1px solid #f0f1f6;"><span style="font-size:20px;font-weight:850;color:var(--brand);min-width:44px;">${stats.learnedEver}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">个单词已学过</span></div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;border-bottom:1px solid #f0f1f6;"><span style="font-size:20px;font-weight:850;color:var(--brand);min-width:44px;">${stats.knowDoneEver}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">条知识已掌握</span></div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;border-bottom:1px solid #f0f1f6;"><span style="font-size:20px;font-weight:850;color:var(--accent);min-width:44px;">${Object.keys(hSessions).length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">天运动打卡</span></div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;"><span style="font-size:20px;font-weight:850;color:var(--hot);min-width:44px;">${transactions.length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">笔记账记录</span></div></div><div class="card"><div class="sec-title" style="margin:0 0 8px;">🩺 环境诊断</div><p style="font-size:12px;color:var(--sub);line-height:1.65;margin:0 0 8px;">检查语音合成/识别/存储/网络 TTS 是否可用。</p><button class="btn primary wide" data-act="openDiag">打开诊断面板</button></div><div class="card"><div class="sec-title" style="margin:0 0 8px;">🤖 AI 助手配置</div><select id="aiProvider" style="margin-bottom:8px;"><option value="none" ${AI.provider === 'none'?'selected':''}>不启用</option><option value="deepseek" ${AI.provider === 'deepseek'?'selected':''}>DeepSeek</option><option value="qwen" ${AI.provider === 'qwen'?'selected':''}>通义千问</option><option value="zhipu" ${AI.provider === 'zhipu'?'selected':''}>智谱 GLM</option></select><input type="password" id="aiKey" placeholder="sk-..." value="${esc(AI.apiKey)}"><button class="btn primary wide" style="margin-top:10px" data-act="saveAI">保存配置</button></div><div class="card"><div class="sec-title" style="margin:0 0 8px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:6px;" data-act="importData">📥 导入（JSON / CSV）</button></div><div class="card" style="border:1px solid #fee2e2;"><div class="sec-title" style="margin:0 0 6px;color:#dc2626;">危险操作</div><button class="btn danger wide" data-act="clearData">🗑 清空本设备数据</button></div>`;
+  return `<div class="hero"><div class="hero-k">我的</div><h1>数据管理</h1>${streak.count>0?`<div style="margin-top:10px"><span class="streak-badge" style="font-size:13px;padding:5px 12px;">🔥 已连续学习 ${streak.count} 天</span></div>`:''}</div><div class="card"><div class="sec-title" style="margin:0 0 8px;">📊 累计数据</div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;border-bottom:1px solid #f0f1f6;"><span style="font-size:20px;font-weight:850;color:var(--brand);min-width:44px;">${stats.learnedEver}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">个单词已学过</span></div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;border-bottom:1px solid #f0f1f6;"><span style="font-size:20px;font-weight:850;color:var(--brand);min-width:44px;">${stats.knowDoneEver}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">条知识已掌握</span></div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;border-bottom:1px solid #f0f1f6;"><span style="font-size:20px;font-weight:850;color:var(--accent);min-width:44px;">${Object.keys(hSessions).length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">天运动打卡</span></div><div style="display:flex;align-items:baseline;gap:6px;padding:8px 4px;"><span style="font-size:20px;font-weight:850;color:var(--hot);min-width:44px;">${transactions.length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">笔记账记录</span></div></div>
+  <div class="card" style="border:2px solid #4f46e5;background:#f8f9fd;"><div class="sec-title" style="margin:0 0 8px;">🔊 测试喇叭</div><p style="font-size:12px;color:#4b5265;line-height:1.65;margin:0 0 10px;">点下面按钮测试原生 TTS 是否正常发声。如果这里没声，说明系统 TTS 引擎需要修复。</p><button class="btn primary wide" data-act="testSpeak">▶ 测试"你好，测试成功"</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:6px;" data-act="testSpeakEn">▶ 测试"Hello, test"</button></div>
+  <div class="card"><div class="sec-title" style="margin:0 0 8px;">🩺 环境诊断</div><button class="btn primary wide" data-act="openDiag">打开诊断面板</button></div>
+  <div class="card"><div class="sec-title" style="margin:0 0 8px;">🤖 AI 助手配置</div><select id="aiProvider" style="margin-bottom:8px;"><option value="none" ${AI.provider === 'none'?'selected':''}>不启用</option><option value="deepseek" ${AI.provider === 'deepseek'?'selected':''}>DeepSeek</option><option value="qwen" ${AI.provider === 'qwen'?'selected':''}>通义千问</option><option value="zhipu" ${AI.provider === 'zhipu'?'selected':''}>智谱 GLM</option></select><input type="password" id="aiKey" placeholder="sk-..." value="${esc(AI.apiKey)}"><button class="btn primary wide" style="margin-top:10px" data-act="saveAI">保存配置</button></div>
+  <div class="card"><div class="sec-title" style="margin:0 0 8px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:6px;" data-act="importData">📥 导入（JSON / CSV）</button></div>
+  <div class="card" style="border:1px solid #fee2e2;"><div class="sec-title" style="margin:0 0 6px;color:#dc2626;">危险操作</div><button class="btn danger wide" data-act="clearData">🗑 清空本设备数据</button></div>`;
 }
 
-/* ============ 视图调度 ============ */
+/* ================= 视图调度 ================= */
 const VIEWS = { home: homeView, study: studyView, life: lifeView, discover: discoverView, me: meView };
 let renderToken = 0;
 async function render(options){
@@ -1298,7 +1412,7 @@ async function render(options){
 }
 function applyChecks(){ const c = getChecks(); document.querySelectorAll('[data-check-key]').forEach(el=>{ if(c[el.dataset.checkKey]) el.classList.add('done'); else el.classList.remove('done'); }); }
 
-/* ============ 天气 ============ */
+/* ================= 天气 ================= */
 async function fetchWeather(){
   const el1 = document.getElementById('homeWeather'); const el2 = document.getElementById('homeTemp');
   if(!el1 || !el2) return;
@@ -1313,7 +1427,7 @@ async function fetchWeather(){
   } catch(e){ const cached = HealthStore.load('lastWeather',null); if(cached){ el1.textContent = '☀️ '+cached.text; el2.textContent = cached.temp+'℃'; } else { el1.textContent = '☀️ 晴'; el2.textContent = '--℃'; } }
 }
 
-/* ============ Sheet 与复习 ============ */
+/* ================= Sheet 与复习 ================= */
 let _sheetCloseTimer = null;
 function sheetHTML(html){ return `<div class="sheet-mask" data-act="closeSheet"></div><div class="sheet-body">${html}</div>`; }
 function openSheet(html){ if(_sheetCloseTimer){ clearTimeout(_sheetCloseTimer); _sheetCloseTimer = null; } const wasOpen = sheet.classList.contains('open'); sheet.innerHTML = sheetHTML(html); if(!wasOpen) requestAnimationFrame(()=>sheet.classList.add('open')); }
@@ -1376,7 +1490,7 @@ async function startWeeklyTest(){
 }
 function playBeep(){ try{ const ctx = new (window.AudioContext || window.webkitAudioContext)(); const o = ctx.createOscillator(),g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = 880; o.type = 'sine'; g.gain.setValueAtTime(0.3,ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8); o.start(); o.stop(ctx.currentTime+0.8); }catch(e){} }
 
-/* ============ AI 助手 ============ */
+/* ================= AI 助手 ================= */
 function openAIAssistant(){
   const msgs = LearnStore.getAIHistory(); const role = state.aiRole;
   const roles = Object.keys(AI.roles).map(k=>({id:k,name:AI.roles[k].name}));
@@ -1391,7 +1505,7 @@ async function sendAIMessage(){
   state.aiLoading = false; openAIAssistant();
 }
 
-/* ============ 导出/导入 ============ */
+/* ================= 导出/导入 ================= */
 function collectAllKV(){ const kv = {}; try{ NativeStore.keys().forEach(k=>{ if(k.indexOf('cache:') === 0) return; const raw = NativeStore.get(k,null); try{ kv[k] = JSON.stringify(raw); }catch(e){ kv[k] = null; } }); }catch(e){} return kv; }
 function doExport(){ const data = {app:'daily-health',version:3,exportedAt:new Date().toISOString(),kv:collectAllKV()}; const json = JSON.stringify(data,null,2); saveTextFile(json,`日常健康备份_${todayStr().replace(/-/g,'')}_${pad(new Date().getHours())}${pad(new Date().getMinutes())}.json`,'application/json'); }
 function doImport(){ const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,.csv,application/json,text/csv,text/plain,*/*'; input.style.position = 'fixed'; input.style.left = '-9999px'; input.style.opacity = '0'; input.onchange = e=>{ const f = e.target.files[0]; if(!f) return; if(!confirm('导入会覆盖/合并当前数据，确定继续？')) return; const reader = new FileReader(); reader.onload = ev=>{ try{ doImportConfirm(ev.target.result,f.name); }catch(err){ toast('文件读取失败：'+err.message); } }; reader.readAsText(f,'UTF-8'); }; document.body.appendChild(input); input.click(); setTimeout(()=>{ try{ document.body.removeChild(input); }catch(e){} },60000); }
@@ -1417,7 +1531,7 @@ function doImportConfirm(text,fileName){
 }
 function clearAllData(){ if(!confirm('确定清空？所有学习、健康数据将丢失。')) return; const prefixes = ['learned:','know-done:','passage-done:','news-think-','news-done:','quote-done:','story-done:','yiyan-done:','general-done:','expr-done:','note:','ask-cache:','ask-text:','think-ans:','think-done-days:','expr-ans:','expr-grade:','today-words:','schedule:','cache:','weekly-result:','alltest-result','ai-','streak','app_h_']; try{ NativeStore.keys().forEach(k=>{ if(prefixes.some(p=>k.startsWith(p))) NativeStore.del(k); }); }catch(e){} toast('已清空'); setTimeout(()=>location.reload(),500); }
 
-/* ============ 语音识别（关键修复：失败不立即关闭浮层） ============ */
+/* ================= 语音识别 ================= */
 let _voiceActive = false;
 let _webRec = null;
 let _xunfeiActive = false;
@@ -1532,7 +1646,7 @@ function stopXunfeiRecognition(){
   setMicUI(false,'点击开始/结束语音（默认 10 秒）');
 }
 
-/* ============ 久坐提醒（含开始语音播报） ============ */
+/* ================= 久坐提醒 ================= */
 const WALK_LAST_KEY = 'app_h_lastWalkReminder';
 let _walkTimerHandle = null, _walkCountdownHandle = null, _walkEndTs = 0;
 function isInWalkWindow(){ const now = new Date(); const mins = now.getHours()*60+now.getMinutes(); return (mins >= 8*60+30 && mins <= 11*60+30) || (mins >= 13*60+30 && mins <= 17*60); }
@@ -1540,7 +1654,16 @@ function vibratePattern(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }ca
 function speakText(text){
   const t = String(text||''); if(!t) return;
   try{
-    if(window.AndroidTTS && typeof AndroidTTS.speak === 'function'){ AndroidTTS.speak(t,'zh-CN','walk'+Date.now()); return; }
+    if(window.AndroidTTS && typeof AndroidTTS.speak === 'function'){
+      try { AndroidTTS.speak(t,'zh-CN','walk'+Date.now()); return; }
+      catch(e1){
+        try { AndroidTTS.speak(t,'zh-CN'); return; }
+        catch(e2){
+          try { AndroidTTS.speak(t); return; }
+          catch(e3){}
+        }
+      }
+    }
     if(typeof speechSynthesis !== 'undefined'){ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'zh-CN'; u.rate = 1.0; speechSynthesis.speak(u); }
   }catch(e){}
 }
@@ -1558,7 +1681,6 @@ function finishWalkTimer(){
 function startWalkTimer(sec){
   const el = document.getElementById('centerTimer'); const num = document.getElementById('centerTimerNum');
   if(!el || !num) return;
-  // 先解锁音频 + 立即播报
   if(!_audioUnlocked) unlockAudio();
   const duration = Math.max(1, parseInt(sec,10)||200);
   _walkEndTs = Date.now() + duration*1000;
@@ -1566,7 +1688,6 @@ function startWalkTimer(sec){
   el.classList.add('show');
   if(_walkCountdownHandle) clearInterval(_walkCountdownHandle);
   _walkCountdownHandle = setInterval(()=>{ const left = Math.max(0,Math.ceil((_walkEndTs-Date.now())/1000)); num.textContent = left; if(left <= 0) finishWalkTimer(); }, 250);
-  // 开始播报
   vibratePattern([150]);
   setTimeout(()=>speakText('该站起来了，动一动吧'), 100);
 }
@@ -1588,22 +1709,45 @@ function initWalkReminder(){
   if(window.AndroidNotify && typeof AndroidNotify.startReminderService === 'function'){ try{ AndroidNotify.startReminderService(); }catch(e){} }
 }
 
-/* ============ 事件委托（统一到 document，避免重绘丢失） ============ */
-document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-act]');
-  // 处理 200 秒倒计时关闭按钮（不在 view 里）
-  if(t){
-    const act = t.dataset.act;
-    if(act === 'closeCenterTimer'){ finishWalkTimer(); return; }
+/* ================= 环境诊断 ================= */
+function runDiagnostics(){
+  const rows = [];
+  const add = (name,ok,extra)=>{ rows.push({name,ok,extra}); };
+  // 测试 TTS 各签名
+  let ttsSig = '未知';
+  if(window.AndroidTTS && typeof AndroidTTS.speak === 'function'){
+    ttsSig = '存在（点击测试）';
+  } else {
+    ttsSig = '不存在';
   }
+  add('AndroidTTS（原生语音合成）', !!(window.AndroidTTS && typeof AndroidTTS.speak === 'function'), ttsSig);
+  add('AndroidSTT（原生语音识别）', !!(window.AndroidSTT && typeof AndroidSTT.start === 'function'));
+  add('AndroidStore（原生存储）', !!(window.AndroidStore && typeof AndroidStore.get === 'function'));
+  add('AndroidFile（原生文件）', !!(window.AndroidFile && typeof AndroidFile.saveFile === 'function'));
+  add('AndroidNotify（原生通知）', !!window.AndroidNotify);
+  add('speechSynthesis（浏览器 TTS）', typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined');
+  add('SpeechRecognition（浏览器识别）', !!(window.SpeechRecognition || window.webkitSpeechRecognition));
+  add('MediaDevices（麦克风接口）', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  add('localStorage', (()=>{ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }catch(e){ return false; } })());
+  const html = `<div class="sheet-head"><div class="sheet-emoji">🩺</div><div style="flex:1;min-width:0;"><h2>环境诊断</h2><div style="font-size:12px;color:var(--sub);">检查语音/存储能力</div></div><button class="link-btn" data-act="closeSheet">关闭</button></div><div style="margin-top:10px;">${rows.map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed #eceef4;font-size:13px;"><span style="flex:1;color:#3A4152;">${r.name}</span><span style="font-weight:700;font-size:12.5px;color:${r.ok?'var(--ok)':'var(--err)'}">${r.ok?'✅ 可用':'❌ 不可用'}</span></div>`).join('')}</div><div style="margin-top:14px;"><button class="btn primary wide" data-act="testSpeak">▶ 测试"你好，测试成功"</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:6px;" data-act="testSpeakEn">▶ 测试"Hello, test"</button></div><div style="margin-top:14px;padding:12px;background:#f8f9fd;border-radius:12px;font-size:12px;line-height:1.7;color:#4b5265;"><b>说明：</b><br>· AndroidTTS 可用 → 喇叭按钮走原生 TTS<br>· 若"测试喇叭"没声，请在系统设置里给本 App 开启「无障碍/朗读」权限，或安装「讯飞语音引擎」</div>`;
+  openSheet(html);
+}
+
+/* ================= 事件委托 ================= */
+document.addEventListener('click', async e => {
+  // 200 秒倒计时关闭（不在 view 里）
+  const t2 = e.target.closest('[data-act="closeCenterTimer"]');
+  if(t2){ finishWalkTimer(); return; }
+  const t = e.target.closest('[data-act]');
   if(!t || !view.contains(t)) return;
   const act = t.dataset.act;
   if(act === 'speak'){ e.stopPropagation(); toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
+  if(act === 'testSpeak'){ toggleSpeak('你好，测试成功', 'zh-CN', null); return; }
+  if(act === 'testSpeakEn'){ toggleSpeak('Hello, test', 'en-US', null); return; }
   if(act === 'copyText'){ copyText(t.dataset.text).then(ok=>toast(ok?'已复制':'复制失败')); return; }
   if(act === 'openNews'){ openExternal(t.dataset.url); return; }
   if(act === 'openAI'){ openAIAssistant(); return; }
   if(act === 'openDiag'){ runDiagnostics(); return; }
-  if(act === 'startRest'){ /* 简易休息计时 */ return; }
   if(act === 'gotoBodyData'){ state.tab = 'life'; state.lifeSub = 'sport'; state.sportSub = 'body'; render(); return; }
   if(act === 'setOverride'){ const mode = t.dataset.mode; const today = new Date(); today.setHours(0,0,0,0); setOverride(today,mode === 'original'?null:mode); buildCalendarFromPlans(); render({keepScroll:true}); toast(mode === 'original'?'已恢复为正常状态':'已切换身体状态'); return; }
   if(act === 'studySub'){ state.studySub = t.dataset.sub; render(); return; }
@@ -1677,10 +1821,9 @@ document.addEventListener('click', async e => {
   if(act === 'rate'){ rateAndNext(t.dataset.rating); return; }
 });
 
-// 点击圆圈打卡（系统/手动）
 document.addEventListener('click', e => {
   const c = e.target.closest('.check');
-  if(c && !c.dataset.act){
+  if(c && !c.dataset.act && view.contains(c)){
     if(c.dataset.checkKey){ c.classList.toggle('done'); const isDone = c.classList.contains('done'); setCheck(c.dataset.checkKey,isDone); return; }
   }
   const dayEl = e.target.closest('[data-date]');
@@ -1712,7 +1855,6 @@ document.addEventListener('click', e => {
   if(mic && view.contains(mic)){ startVoiceInput(); return; }
 });
 
-// input 事件
 view.addEventListener('input', e => {
   const el = e.target; if(!el) return;
   if(el.id === 'valveSearch'){ const val = el.value, pos = el.selectionStart; state.searchQuery = val; clearTimeout(window.__valveSearchTimer); window.__valveSearchTimer = setTimeout(async()=>{ await render({keepScroll:true}); const n = document.getElementById('valveSearch'); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } },200); return; }
@@ -1731,24 +1873,7 @@ tabbar.addEventListener('click', e => { const t = e.target.closest('.tab'); if(!
 fab.addEventListener('click', ()=>openAIAssistant());
 document.getElementById('diagBtn').addEventListener('click', runDiagnostics);
 
-/* ============ 环境诊断 ============ */
-function runDiagnostics(){
-  const rows = [];
-  const add = (name,ok)=>{ rows.push({name,ok}); };
-  add('AndroidTTS（原生语音合成）', !!(window.AndroidTTS && typeof AndroidTTS.speak === 'function'));
-  add('AndroidSTT（原生语音识别）', !!(window.AndroidSTT && typeof AndroidSTT.start === 'function'));
-  add('AndroidStore（原生存储）', !!(window.AndroidStore && typeof AndroidStore.get === 'function'));
-  add('AndroidFile（原生文件）', !!(window.AndroidFile && typeof AndroidFile.saveFile === 'function'));
-  add('AndroidNotify（原生通知）', !!window.AndroidNotify);
-  add('speechSynthesis（浏览器 TTS）', typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined');
-  add('SpeechRecognition（浏览器识别）', !!(window.SpeechRecognition || window.webkitSpeechRecognition));
-  add('MediaDevices（麦克风接口）', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
-  add('localStorage', (()=>{ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }catch(e){ return false; } })());
-  const html = `<div class="sheet-head"><div class="sheet-emoji">🩺</div><div style="flex:1;min-width:0;"><h2>环境诊断</h2><div style="font-size:12px;color:var(--sub);">检查语音/存储能力</div></div><button class="link-btn" data-act="closeSheet">关闭</button></div><div style="margin-top:10px;">${rows.map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed #eceef4;font-size:13px;"><span style="flex:1;color:#3A4152;">${r.name}</span><span style="font-weight:700;font-size:12.5px;color:${r.ok?'var(--ok)':'var(--err)'}">${r.ok?'✅ 可用':'❌ 不可用'}</span></div>`).join('')}</div><div style="margin-top:14px;padding:12px;background:#f8f9fd;border-radius:12px;font-size:12px;line-height:1.7;color:#4b5265;"><b>说明：</b><br>· AndroidTTS 可用 → 喇叭按钮走原生 TTS，离线也能发声<br>· AndroidSTT 可用 → 语音记账走原生识别，最稳定<br>· 若喇叭仍无声，请在系统设置里给本 App 开启「无障碍/朗读」权限</div>`;
-  openSheet(html);
-}
-
-/* ============ 初始化 ============ */
+/* ================= 初始化 ================= */
 (async function init(){
   loadDataFromGlobals();
   buildCalendarFromPlans();
