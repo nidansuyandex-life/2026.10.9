@@ -6,13 +6,12 @@ pluginManagement {
     }
 }
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        // 讯飞 aar 通过 app/libs 引用；这行是保险用的
-        flatDir { dirs("${rootDir}/app/libs") }
     }
 }
+
 rootProject.name = "DailyHealth"
 include ':app'
