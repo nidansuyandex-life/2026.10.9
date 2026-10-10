@@ -213,6 +213,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .kv:last-child{border-bottom:none;}
 .kv .k{flex:none;width:60px;color:var(--sub);font-weight:500;}
 .kv .v{flex:1;color:#3A4152;}
+.kv .v.hl{color:var(--accent);font-weight:600;}
 .ex-item{padding:13px 0;border-bottom:1px solid #F3F5F9;}
 .ex-item:last-child{border-bottom:none;padding-bottom:0;}
 .ex-top{display:flex;align-items:flex-start;gap:10px;}
@@ -323,17 +324,14 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid var(--l
 .center-timer .actions button{flex:1;border:0;font-family:inherit;font-size:14px;font-weight:600;padding:12px;border-radius:12px;cursor:pointer;}
 .center-timer .actions .btn-skip{background:#f1f2f9;color:#4b5265;}
 .center-timer .actions .btn-ok{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;}
-/* 语音浮层 */
 .voice-overlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(20,25,40,.88);color:#fff;padding:26px 22px;border-radius:22px;z-index:150;display:none;min-width:220px;max-width:88%;text-align:center;backdrop-filter:blur(10px);}
 .voice-overlay.show{display:block;}
 .voice-overlay .wave{font-size:36px;margin-bottom:8px;animation:pulse 1s ease-in-out infinite;}
 .voice-overlay .interim{font-size:14px;line-height:1.6;min-height:44px;word-break:break-all;margin-top:8px;}
 .voice-overlay .countdown{font-size:11.5px;opacity:.7;margin-top:12px;}
 .voice-overlay .tip{font-size:11.5px;opacity:.65;margin-top:6px;}
-/* 图表 */
 .chart-wrap{background:#fff;border-radius:16px;padding:14px;margin-bottom:12px;}
 .chart-svg{width:100%;height:120px;display:block;}
-/* 全局搜索浮层 */
 .search-overlay{position:absolute;inset:0;z-index:180;display:none;background:rgba(15,20,40,.4);}
 .search-overlay.show{display:block;}
 .search-overlay .panel{position:absolute;left:0;right:0;top:0;bottom:0;background:#fbfbfe;padding:16px;overflow-y:auto;}
@@ -345,7 +343,6 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid var(--l
 .search-overlay .item .badge{display:inline-block;font-size:10px;font-weight:750;padding:2px 7px;border-radius:5px;margin-right:6px;}
 .search-overlay .item .q{font-size:14px;font-weight:650;line-height:1.4;}
 .search-overlay .item .s{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.6;}
-/* 计划进度圆点 */
 .plan-dots{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;}
 .plan-dots i{width:8px;height:8px;border-radius:50%;background:#E6E9F1;display:block;}
 .plan-dots i.on{background:var(--accent);}
@@ -365,16 +362,12 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid var(--l
   <button class="fab" id="fab">🤖</button>
   <nav class="tabbar" id="tabbar"></nav>
   <audio id="ttsPlayer" preload="auto"></audio>
-
-  <!-- 语音识别浮层 -->
   <div class="voice-overlay" id="voiceOverlay">
     <div class="wave">🎙️</div>
     <div class="interim" id="voiceInterim">正在聆听…</div>
     <div class="countdown" id="voiceCountdown">再次点击结束</div>
     <div class="tip">例：“午饭 35 块”“发工资 8000”</div>
   </div>
-
-  <!-- 全局搜索浮层 -->
   <div class="search-overlay" id="searchOverlay">
     <div class="panel">
       <div class="search-header">
@@ -384,7 +377,6 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid var(--l
       <div id="gsResults"></div>
     </div>
   </div>
-
   <div id="sheet"></div>
   <div class="center-timer" id="centerTimer">
     <div class="box">
@@ -404,12 +396,35 @@ window.addEventListener('error', e => console.error('Error:', e.message));
 window.addEventListener('unhandledrejection', e => console.error('Promise:', e.reason));
 
 /* ================================================================
-   ① NativeStore：原生优先的存储层（解决 localStorage 隐患）
+   ① 音频解锁（解决 WebView 拦截有声播放）
+   ================================================================ */
+let _audioUnlocked = false;
+function unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    const p = document.getElementById('ttsPlayer');
+    if (!p) return;
+    // 1x1 静音 WAV，用于激活 WebView 的音频上下文
+    p.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    p.volume = 0;
+    const pp = p.play();
+    if (pp && pp.catch) pp.catch(() => {});
+    setTimeout(() => {
+      try { p.pause(); p.volume = 1; p.removeAttribute('src'); p.load(); } catch(e){}
+    }, 250);
+  } catch(e) { console.warn('unlockAudio', e); }
+}
+// 首次用户触摸/点击时解锁
+document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+document.addEventListener('mousedown', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
+
+/* ================================================================
+   ② NativeStore 存储层
    ================================================================ */
 const NativeStore = {
   available: !!(window.AndroidStore && typeof window.AndroidStore.get === 'function'),
-  _memFallback: {},
-
   get(key, def) {
     if (this.available) {
       try {
@@ -418,37 +433,28 @@ const NativeStore = {
         return JSON.parse(v);
       } catch (e) { console.warn('NativeStore.get', key, e); }
     }
-    try {
-      const v = localStorage.getItem(key);
-      return v === null ? def : JSON.parse(v);
-    } catch (e) { return def; }
+    try { const v = localStorage.getItem(key); return v === null ? def : JSON.parse(v); }
+    catch (e) { return def; }
   },
   set(key, val) {
     let str;
     try { str = JSON.stringify(val); } catch (e) { return; }
     if (this.available) {
-      try { window.AndroidStore.set(key, str); return; } catch (e) { console.warn('NativeStore.set', key, e); }
+      try { window.AndroidStore.set(key, str); return; } catch (e) {}
     }
     try { localStorage.setItem(key, str); } catch (e) {}
   },
   del(key) {
-    if (this.available) {
-      try { window.AndroidStore.remove(key); return; } catch (e) {}
-    }
+    if (this.available) { try { window.AndroidStore.remove(key); return; } catch (e) {} }
     try { localStorage.removeItem(key); } catch (e) {}
   },
   keys() {
     if (this.available) {
-      try {
-        const arr = window.AndroidStore.keys();
-        if (Array.isArray(arr)) return arr;
-      } catch (e) {}
+      try { const arr = window.AndroidStore.keys(); if (Array.isArray(arr)) return arr; } catch (e) {}
     }
     try { return Object.keys(localStorage); } catch (e) { return []; }
   }
 };
-
-// 兼容原 LS 接口
 const LS = {
   get(k, d) { return NativeStore.get(k, d); },
   set(k, v) { NativeStore.set(k, v); },
@@ -456,7 +462,7 @@ const LS = {
 };
 
 /* ================================================================
-   ② ApiKeys：原生优先，前端兜底（解决密钥硬编码）
+   ③ API Keys
    ================================================================ */
 const ApiKeys = {
   _cache: null,
@@ -491,7 +497,7 @@ const ApiKeys = {
 };
 
 /* ================================================================
-   ③ 通用工具
+   ④ 通用工具
    ================================================================ */
 const DAY = Math.floor((Date.now() + 8 * 3600 * 1000) / 86400000);
 const DAILY_WORD_COUNT = 5, DAILY_VALVE_COUNT = 5, REVIEW_TARGET = 5, PAGE_SIZE = 50;
@@ -559,7 +565,31 @@ function toast(msg) {
 }
 
 /* ================================================================
-   ④ 内置数据（与原版一致，保留）
+   ⑤ ★ 补回：TianapiQueue 和 tianapiFetch（上次重构漏掉的）
+   ================================================================ */
+const TianapiQueue = {
+  _lastTs: 0, _tail: Promise.resolve(), _pending: 0,
+  async run(fn) {
+    this._pending++;
+    const prev = this._tail;
+    let release;
+    this._tail = new Promise(r => { release = r; });
+    try {
+      await prev.catch(() => {});
+      const now = Date.now();
+      const wait = Math.max(0, 1200 - (now - this._lastTs));
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      try { return await fn(); }
+      finally { this._lastTs = Date.now(); }
+    } finally { this._pending--; release(); }
+  }
+};
+async function tianapiFetch(url, timeout = 8000) {
+  return await TianapiQueue.run(async () => await raceTimeout(fetchJson(url, timeout), timeout + 1000));
+}
+
+/* ================================================================
+   ⑥ 内置数据
    ================================================================ */
 const FALLBACK_WHY = [
   { q: '为什么天空是蓝色的？', a: '太阳光进入大气层时，波长较短的蓝光被空气分子散射得最厉害（瑞利散射），所以天空呈现蓝色。' },
@@ -590,7 +620,6 @@ const BUILTIN_WORDS = [
   { w: 'utilize', ph: '/ˈjuːtəlaɪz/', pos: 'v.', cn: '利用', scene: 'Utilize your strengths.', sceneCn: '发挥你的优势。' },
   { w: 'valuable', ph: '/ˈvæljuəbl/', pos: 'adj.', cn: '有价值的', scene: 'Time is valuable.', sceneCn: '时间很宝贵。' }
 ];
-
 const SEED = {
   DECKS: [], VALVE: {}, THINKING: [], SCENES: {},
   EXPRESS_PASSAGES: [
@@ -677,9 +706,6 @@ const GARMENT_FIELDS = {
 };
 function getSizeType(cat) { if (cat === 'pants') return 'pants'; if (cat === 'shoes') return 'shoes'; if (cat === 'bag' || cat === 'acc') return 'free'; return 'cloth'; }
 
-/* ================================================================
-   ⑤ 从全局加载数据
-   ================================================================ */
 function loadDataFromGlobals() {
   if (window.__VALVE_DATA && typeof window.__VALVE_DATA === 'object') {
     SEED.VALVE = window.__VALVE_DATA;
@@ -716,7 +742,7 @@ function loadDataFromGlobals() {
 }
 
 /* ================================================================
-   ⑥ DeckLoader（词库加载）
+   ⑦ DeckLoader
    ================================================================ */
 const DeckLoader = {
   loaded: {}, loading: {},
@@ -755,7 +781,7 @@ const DeckLoader = {
 };
 
 /* ================================================================
-   ⑦ LearnStore（含 SM-2 算法）
+   ⑧ LearnStore（含 SM-2）
    ================================================================ */
 const LearnStore = {
   getLearned() { const v = LS.get('learned:' + DAY, []); return Array.isArray(v) ? v : []; },
@@ -808,8 +834,6 @@ const LearnStore = {
     const next = { count: newCount, last: t, best };
     LS.set('streak', next); return next;
   },
-
-  // ============ SM-2 算法（替换简单固定间隔） ============
   getSchedule(type) { const v = LS.get('schedule:' + type, {}); return (v && typeof v === 'object') ? v : {}; },
   setSchedule(type, obj) { LS.set('schedule:' + type, obj); },
   ensureSchedule(type, key) {
@@ -825,24 +849,17 @@ const LearnStore = {
     if (due.length) return shuffle(due).slice(0, limit);
     return all.slice().sort((a, b) => ((s[a] && s[a].nextDay) || 0) - ((s[b] && s[b].nextDay) || 0)).slice(0, limit);
   },
-  // SM-2: rating ∈ {again, hard, good}
-  // q: again=0, hard=3, good=5
   rateItem(type, key, rating) {
     const s = this.getSchedule(type);
     const cur = s[key] || { ef: 2.5, n: 0, interval: 0, nextDay: DAY, wrongCount: 0, rightCount: 0 };
     const qMap = { again: 0, hard: 3, good: 5 };
     const q = qMap[rating] != null ? qMap[rating] : 3;
-
-    // 更新 EF（Easiness Factor）
     let ef = cur.ef || 2.5;
     ef = ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
     if (ef < 1.3) ef = 1.3;
-
-    // 计算新间隔
     let interval, n;
     if (q < 3) {
-      n = 0;
-      interval = 1;
+      n = 0; interval = 1;
       cur.wrongCount = (cur.wrongCount || 0) + 1;
     } else {
       n = (cur.n || 0) + 1;
@@ -852,17 +869,11 @@ const LearnStore = {
       else interval = Math.round((cur.interval || 1) * ef);
       cur.wrongCount = 0;
     }
-    // 英文单词允许更紧凑；专业题放大一点
     if (type !== 'english') interval = Math.max(interval, q < 3 ? 1 : Math.round(interval * 1.4));
-
-    cur.ef = ef;
-    cur.n = n;
-    cur.interval = interval;
-    cur.nextDay = DAY + interval;
+    cur.ef = ef; cur.n = n; cur.interval = interval; cur.nextDay = DAY + interval;
     s[key] = cur;
     this.setSchedule(type, s);
   },
-
   getWrongBook() { return LS.get('wrong-book', []); },
   addWrong(type, key, q, ua, fb) {
     const list = this.getWrongBook();
@@ -872,7 +883,6 @@ const LearnStore = {
     LS.set('wrong-book', list.slice(0, 200));
   },
   removeWrong(type, key) { LS.set('wrong-book', this.getWrongBook().filter(x => !(x.type === type && x.key === key))); },
-
   getTodayTasks() {
     const learned = this.getLearned(); const knowDone = this.getKnowDone();
     const passageDone = LS.get('passage-done:' + DAY, false);
@@ -918,7 +928,7 @@ const LearnStore = {
 };
 
 /* ================================================================
-   ⑧ HealthStore（健康相关）
+   ⑨ HealthStore
    ================================================================ */
 const HealthStore = {
   save(key, val) { try { LS.set('app_h_' + key, val); } catch (e) {} },
@@ -973,7 +983,25 @@ function setOverride(date, mode) {
 }
 function getOverride(date) { return getOverrides()[localDateStr(date)] || null; }
 
-// ★ 基于完成次数的运动计划（解决"请假一周计划乱掉"）
+/* ★★★ 修复：计划进度基于"有效训练日"，休息/经期/请假不占用进度 ★★★ */
+function getPlanDayInfo(date = new Date()) {
+  const d = new Date(date); d.setHours(0, 0, 0, 0);
+  const start = new Date(PLAN_START); start.setHours(0, 0, 0, 0);
+  if (d < start) return null;
+  // 统计从 start 到 d（不含 d）之间有多少天是"训练日"（非休息/经期/请假）
+  let effectiveDays = 0;
+  const cur = new Date(start);
+  let safety = 0;
+  while (cur < d && safety < 400) {
+    safety++;
+    const ov = getOverride(cur);
+    const isRest = (ov === 'leave' || ov === 'period' || ov === 'rest');
+    if (!isRest) effectiveDays++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  if (effectiveDays >= 84) return null;
+  return { diff: effectiveDays, weekIndex: Math.floor(effectiveDays / 7) + 1, dayOfWeek: effectiveDays % 7 };
+}
 function getCompletedTrainingCount() {
   const sessions = getSportSessions();
   let count = 0;
@@ -985,12 +1013,6 @@ function getCompletedTrainingCount() {
     }
   });
   return count;
-}
-function getPlanDayInfo(date = new Date()) {
-  const d = new Date(date); d.setHours(0, 0, 0, 0);
-  const diff = Math.floor((d - PLAN_START) / 86400000);
-  if (diff < 0 || diff >= 200) return null;
-  return { diff, weekIndex: Math.floor(diff / 7) + 1, dayOfWeek: diff % 7 };
 }
 
 const BODY_DEFAULT = { height: 165, weight: 51.7, bodyFat: 33, shoulder: 38, neck: 32, bust: 86, underbust: 74, waist: 68, abdomen: 78, hip: 92, upperArm: 27, forearm: 23, wrist: 15.5, thigh: 52, calf: 34, ankle: 21, armLength: 56, legLength: 96, inseam: 72, footLength: 23.5, footWidth: 9 };
@@ -1080,7 +1102,7 @@ function analyzeIngredients(name, ingrText) {
 function saveSkinProducts() { HealthStore.save('skinProducts', skinProducts); }
 
 /* ================================================================
-   ⑨ 运动计划构建
+   ⑩ 运动计划
    ================================================================ */
 function mkEx(code, sets, reps, load) { return { code, sets, reps, dose: reps, load, ...(EXERCISES[code] || { name: code, purpose: '', how: '', breath: '' }) }; }
 function buildPlanByContent(wi, dow) {
@@ -1112,9 +1134,6 @@ function currentPlan() {
   return buildPlanByContent(plan.weekIndex, plan.dayOfWeek);
 }
 
-/* ================================================================
-   ⑩ 身材 & 衣物分析
-   ================================================================ */
 function calcShape() {
   const s = body.shoulder, w = body.waist, h = body.hip;
   const whr = w / h, shr = s / h;
@@ -1144,8 +1163,6 @@ function analyzeGarment() {
   if (sizeType === 'cloth') {
     if (g.bust) { const e = g.bust - body.bust; rows.push({ label: '胸围松量', value: (e > 0 ? '+' : '') + e.toFixed(1) + ' cm', fit: fitEase(e, 2, 6) }); }
     if (g.shoulder) { const d = body.shoulder - g.shoulder; rows.push({ label: '肩宽差', value: d > 0 ? `身体宽 ${d.toFixed(1)} cm` : `衣服宽 ${(-d).toFixed(1)} cm`, fit: fitEase(d, 1.5, 3.5) }); }
-    if (shape.name === '梨形') suggests.push('梨形身材：上半身穿亮色。');
-    if (shape.name === '倒三角型') suggests.push('倒三角：避免垫肩。');
   }
   if (sizeType === 'pants') {
     if (g.waist) { const e = g.waist - body.waist; rows.push({ label: '腰围松量', value: (e > 0 ? '+' : '') + e.toFixed(1) + ' cm', fit: fitEase(e, 2, 5) }); }
@@ -1225,8 +1242,6 @@ function exportCsv() {
   const filename = `账单_${rangeLabel}_${todayStr()}.csv`;
   saveTextFile(csv, filename, 'text/csv');
 }
-
-// ★ 导入 CSV → 可选追加/覆盖
 function importTransactionsCsv() {
   const input = document.createElement('input');
   input.type = 'file';
@@ -1285,7 +1300,6 @@ function doImportCsv(file) {
       const raw = ev.target.result.replace(/^\ufeff/, '');
       const newRows = parseLedgerCsv(raw);
       if (!newRows.length) { toast('CSV 未解析出有效记录'); return; }
-      // ★ 让用户选择追加 / 覆盖（覆盖会让签名去重失效，由用户决定）
       const merge = confirm(`解析到 ${newRows.length} 条记录。\n\n【确定】= 追加（自动去重）\n【取消】= 覆盖现有账本`);
       if (merge) {
         const existing = new Set(transactions.map(t => `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note}`));
@@ -1317,7 +1331,7 @@ function doImportCsv(file) {
 }
 
 /* ================================================================
-   ⑫ 数据源（含 API 密钥的动态加载）
+   ⑫ 数据源（含 tianapiFetch 依赖）
    ================================================================ */
 const KNOWLEDGE_CACHE_KEY = 'knowledge-v10';
 
@@ -1518,13 +1532,13 @@ const YiyanSource = {
   }
 };
 
-// ★ 真实推荐 API
+/* ★★★ 推荐 API（扩充兜底） ★★★ */
 const RecommendSource = {
   _cache: {},
   async fetchBooks() {
     if (this._cache.books) return this._cache.books;
     try {
-      const res = await fetch('https://www.googleapis.com/books/v1/volumes?q=subject:fiction&maxResults=5&langRestrict=zh');
+      const res = await raceTimeout(fetch('https://www.googleapis.com/books/v1/volumes?q=subject:fiction&maxResults=5&langRestrict=zh'), 8000);
       const data = await res.json();
       if (!data.items) throw new Error('无数据');
       const list = data.items.map(item => ({
@@ -1536,13 +1550,24 @@ const RecommendSource = {
       }));
       this._cache.books = list;
       return list;
-    } catch (e) { return null; }
+    } catch (e) {
+      // 兜底
+      const fallback = [
+        { name: '人类简史', author: '尤瓦尔·赫拉利', emoji: '📖', why: '从认知革命到人工智能，重新理解人类。', web: () => 'https://weread.qq.com/web/search/books?keyword=人类简史' },
+        { name: '思考，快与慢', author: '丹尼尔·卡尼曼', emoji: '📖', why: '系统1与系统2：如何做更好的决策。', web: () => 'https://weread.qq.com/web/search/books?keyword=思考快与慢' },
+        { name: '被讨厌的勇气', author: '岸见一郎', emoji: '📖', why: '阿德勒心理学入门，自我接纳。', web: () => 'https://weread.qq.com/web/search/books?keyword=被讨厌的勇气' },
+        { name: '原则', author: '瑞·达利欧', emoji: '📖', why: '桥水基金创始人的生活与工作原则。', web: () => 'https://weread.qq.com/web/search/books?keyword=原则' },
+        { name: '心流', author: '米哈里', emoji: '📖', why: '最优体验心理学。', web: () => 'https://weread.qq.com/web/search/books?keyword=心流' }
+      ];
+      this._cache.books = fallback;
+      return fallback;
+    }
   },
   async fetchMovies() {
     if (this._cache.movies) return this._cache.movies;
     try {
       const key = ApiKeys.get('tmdb.key');
-      const res = await fetch(`https://api.themoviedb.org/3/trending/movie/day?api_key=${key}&language=zh-CN`);
+      const res = await raceTimeout(fetch(`https://api.themoviedb.org/3/trending/movie/day?api_key=${key}&language=zh-CN`), 8000);
       const data = await res.json();
       if (!data.results) throw new Error('无数据');
       const list = data.results.slice(0, 5).map(item => ({
@@ -1554,12 +1579,22 @@ const RecommendSource = {
       }));
       this._cache.movies = list;
       return list;
-    } catch (e) { return null; }
+    } catch (e) {
+      const fallback = [
+        { name: '肖申克的救赎', author: '1994', emoji: '🎬', why: '关于希望与自由的经典之作。', web: () => 'https://www.themoviedb.org/movie/278' },
+        { name: '星际穿越', author: '2014', emoji: '🎬', why: '关于爱与时间的科幻巨制。', web: () => 'https://www.themoviedb.org/movie/157336' },
+        { name: '千与千寻', author: '2001', emoji: '🎬', why: '宫崎骏的奇幻成长故事。', web: () => 'https://www.themoviedb.org/movie/129' },
+        { name: '教父', author: '1972', emoji: '🎬', why: '黑帮题材的天花板。', web: () => 'https://www.themoviedb.org/movie/238' },
+        { name: '盗梦空间', author: '2010', emoji: '🎬', why: '层层梦境，回味无穷。', web: () => 'https://www.themoviedb.org/movie/27205' }
+      ];
+      this._cache.movies = fallback;
+      return fallback;
+    }
   },
   async fetchPodcasts() {
     if (this._cache.podcasts) return this._cache.podcasts;
     try {
-      const res = await fetch('https://itunes.apple.com/search?term=podcast&entity=podcast&limit=5&country=cn');
+      const res = await raceTimeout(fetch('https://itunes.apple.com/search?term=podcast&entity=podcast&limit=5&country=cn'), 8000);
       const data = await res.json();
       if (!data.results) throw new Error('无数据');
       const list = data.results.map(item => ({
@@ -1571,19 +1606,31 @@ const RecommendSource = {
       }));
       this._cache.podcasts = list;
       return list;
-    } catch (e) { return null; }
+    } catch (e) {
+      const fallback = [
+        { name: '忽左忽右', author: '程衍樑', emoji: '🎧', why: '聊国际政治、历史、文化。', web: () => 'https://www.xiaoyuzhoufm.com/search?q=忽左忽右' },
+        { name: '文化有限', author: '大猫、阿虾、小北', emoji: '🎧', why: '不正经读书节目。', web: () => 'https://www.xiaoyuzhoufm.com/search?q=文化有限' },
+        { name: '声东击西', author: '徐涛', emoji: '🎧', why: '科技与生活的观察。', web: () => 'https://www.xiaoyuzhoufm.com/search?q=声东击西' },
+        { name: '日谈公园', author: '李叔、小伙子', emoji: '🎧', why: '聊天类播客，放松又好听。', web: () => 'https://www.xiaoyuzhoufm.com/search?q=日谈公园' },
+        { name: '故事FM', author: '爱哲', emoji: '🎧', why: '用你的声音，讲述你的故事。', web: () => 'https://www.xiaoyuzhoufm.com/search?q=故事FM' }
+      ];
+      this._cache.podcasts = fallback;
+      return fallback;
+    }
   },
   async fetchTools() {
     return [
-      { name: 'Obsidian', author: 'Markdown 笔记', emoji: '📝', why: '本地化双链笔记工具', web: () => 'https://obsidian.md/' },
-      { name: 'Excalidraw', author: '白板工具', emoji: '✏️', why: '手绘风格在线白板', web: () => 'https://excalidraw.com/' },
-      { name: 'Raycast', author: '启动器', emoji: '⚡', why: 'Mac 效率启动器', web: () => 'https://www.raycast.com/' }
+      { name: 'Obsidian', author: 'Markdown 笔记', emoji: '📝', why: '本地化双链笔记工具。', web: () => 'https://obsidian.md/' },
+      { name: 'Excalidraw', author: '白板工具', emoji: '✏️', why: '手绘风格在线白板。', web: () => 'https://excalidraw.com/' },
+      { name: 'Raycast', author: '启动器', emoji: '⚡', why: 'Mac 效率启动器。', web: () => 'https://www.raycast.com/' },
+      { name: 'Notion', author: '全能笔记', emoji: '📒', why: '文档、数据库、协作一体。', web: () => 'https://www.notion.so/' },
+      { name: 'Logseq', author: '大纲笔记', emoji: '🗂️', why: '开源本地优先，双向链接。', web: () => 'https://logseq.com/' }
     ];
   }
 };
 
 /* ================================================================
-   ⑬ TTS：原生 → speechSynthesis → 有道（修复发音问题）
+   ⑬ TTS：原生 → speechSynthesis → 有道
    ================================================================ */
 let _currentSpeakBtn = null;
 let _speakSeq = 0;
@@ -1611,6 +1658,8 @@ function markPlaying(btn, seq) {
 
 function toggleSpeak(text, lang, btn) {
   if (!text) { toast('没有内容可朗读'); return; }
+  // 首次点击尝试解锁
+  if (!_audioUnlocked) unlockAudio();
   const wasPlaying = btn && btn.classList.contains('playing');
   stopSpeak();
   if (wasPlaying) return;
@@ -1647,10 +1696,24 @@ function toggleSpeak(text, lang, btn) {
   markPlaying(btn, seq);
   const cleanup = () => { if (seq !== _speakSeq) return; if (_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing'); _currentSpeakBtn = null; };
   player.onended = cleanup;
-  player.onerror = () => { cleanup(); toast('网络语音失败，请检查网络或安装系统 TTS'); };
+  player.onerror = () => { cleanup(); toast('网络语音失败，请检查网络'); };
   player.src = url;
+  player.volume = 1;
   const p = player.play();
-  if (p && p.catch) p.catch(() => { cleanup(); toast('点击屏幕任意处激活音频后，再点朗读'); });
+  if (p && p.catch) p.catch((err) => {
+    // 拦截时，尝试再触发一次
+    console.warn('播放被拦截', err);
+    cleanup();
+    // 二次尝试解锁并播放
+    _audioUnlocked = false;
+    unlockAudio();
+    setTimeout(() => {
+      try {
+        player.src = url;
+        player.play().catch(() => toast('请再点一次朗读'));
+      } catch (e) { toast('播放失败'); }
+    }, 150);
+  });
 }
 
 function copyText(text) {
@@ -1803,7 +1866,6 @@ function homeView() {
   if (showProtein) {
     fixedItems.splice(7, 0, { time: '20:30', text: '吃蛋白粉', sub: '训练后 20–25g 蛋白粉', action: 'supplement', badge: '补剂', checkKey: `home_${t}_protein` });
   }
-
   const todoItems = manualTodos.map(mt => ({
     time: mt.time || '99:99', text: mt.title, action: 'todo', isTodo: true,
     manualPayload: encodeURIComponent(JSON.stringify({ date: t, time: mt.time, title: mt.title })),
@@ -1935,20 +1997,33 @@ async function englishSection() {
   }
   return head;
 }
+
+/* ★★★ 单词卡片：只保留一个喇叭（灰色/蓝紫背景） ★★★ */
 function wordCard(w, i, isDone, isDoneToday) {
   return `<div class="card ${isDone ? 'done' : ''}" data-word="${esc(w.w)}" data-deck="${esc(w.deck || '')}" style="position:relative;">
     <div style="display:flex;align-items:flex-start;gap:12px;cursor:pointer" data-act="learnWord">
       <div style="width:26px;height:26px;border-radius:50%;background:${isDone ? 'var(--brand)' : '#f0f1f8'};color:${isDone ? '#fff' : '#8a90a6'};display:grid;place-items:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px;">${isDone ? '✓' : i + 1}</div>
-      <div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="word-big" style="${isDone ? 'text-decoration:line-through;color:#aab0c0;' : ''}">${esc(w.w)}</span>${w.pos ? `<span style="font-size:11px;color:var(--brand);background:#eef0ff;padding:2px 7px;border-radius:6px;font-weight:700;">${esc(w.pos)}</span>` : ''}${isDoneToday && !isDone ? '<span style="font-size:10.5px;color:#047857;background:#ecfdf5;padding:1px 6px;border-radius:5px;font-weight:650;">今日</span>' : ''}</div><div class="word-ph" style="${isDone ? 'text-decoration:line-through;' : ''}">${esc(w.ph || '')}</div></div>
+      <div style="flex:1;min-width:0;padding-right:48px;">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+          <span class="word-big" style="${isDone ? 'text-decoration:line-through;color:#aab0c0;' : ''}">${esc(w.w)}</span>
+          ${w.pos ? `<span style="font-size:11px;color:var(--brand);background:#eef0ff;padding:2px 7px;border-radius:6px;font-weight:700;">${esc(w.pos)}</span>` : ''}
+          ${isDoneToday && !isDone ? '<span style="font-size:10.5px;color:#047857;background:#ecfdf5;padding:1px 6px;border-radius:5px;font-weight:650;">今日</span>' : ''}
+        </div>
+        <div class="word-ph" style="${isDone ? 'text-decoration:line-through;' : ''}">${esc(w.ph || '')}</div>
+      </div>
     </div>
     <div style="font-size:14px;color:#333a4d;margin-top:10px;font-weight:600;line-height:1.55;${isDone ? 'text-decoration:line-through;color:#aab0c0;' : ''}">${esc(w.cn || '')}</div>
-    ${w.scene ? `<div style="margin-top:11px;padding-top:11px;border-top:1px dashed #eceef4;"><div style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#2b3244;line-height:1.55;"><span style="flex:1">${esc(w.scene)}</span><button style="border:0;background:#f3f4fa;width:30px;height:30px;border-radius:9px;font-size:13px;cursor:pointer;flex:none;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" title="朗读例句">🔊</button></div><div style="font-size:12.5px;color:var(--sub);margin-top:5px;">${esc(w.sceneCn || '')}</div></div>` : ''}
-    <div style="position:absolute;top:14px;right:14px;display:flex;gap:6px;">
-      <button style="border:0;background:#eef0ff;color:var(--brand);width:34px;height:34px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US" title="朗读单词">🔊</button>
-      ${w.scene ? `<button style="border:0;background:#ecfdf5;color:#047857;width:34px;height:34px;border-radius:11px;font-size:13px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" title="朗读例句">📢</button>` : ''}
-    </div>
+    ${w.scene ? `<div style="margin-top:11px;padding-top:11px;border-top:1px dashed #eceef4;">
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#2b3244;line-height:1.55;">
+        <span style="flex:1">${esc(w.scene)}</span>
+        <button style="border:0;background:#eef0ff;color:var(--brand);width:32px;height:32px;border-radius:9px;font-size:14px;cursor:pointer;flex:none;" data-act="speak" data-text="${esc(w.scene)}" data-lang="en-US" title="朗读例句" onclick="event.stopPropagation();">🔊</button>
+      </div>
+      <div style="font-size:12.5px;color:var(--sub);margin-top:5px;">${esc(w.sceneCn || '')}</div>
+    </div>` : ''}
+    <button style="position:absolute;top:14px;right:14px;border:0;background:#eef0ff;color:var(--brand);width:34px;height:34px;border-radius:11px;font-size:15px;cursor:pointer;font-weight:700;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US" title="朗读单词" onclick="event.stopPropagation();">🔊</button>
   </div>`;
 }
+
 function valveSection() {
   const q = state.searchQuery || ''; const cat = state.valveCat || '全部';
   const knowDoneEver = new Set(LearnStore.getAllKnowDoneEver());
@@ -2122,7 +2197,9 @@ function buildCalendarFromPlans() {
   const start = new Date(PLAN_START); start.setDate(start.getDate() - 7);
   const end = new Date(PLAN_START); end.setDate(end.getDate() + 200);
   let cur = new Date(start);
-  while (cur <= end) {
+  let safety = 0;
+  while (cur <= end && safety < 500) {
+    safety++;
     const key = localDateStr(cur);
     const plan = getPlanDayInfo(cur);
     const ov = getOverride(cur);
@@ -2185,7 +2262,6 @@ function calAllPane() {
   return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:6px;">全部待办</div>${html}</div>`;
 }
 
-/* 记账 */
 function moneySection() {
   const sub = state.moneySub || 'record';
   const subs = [{ id: 'record', label: '帮我记' }, { id: 'book', label: '账本' }, { id: 'export', label: '导出' }];
@@ -2200,9 +2276,8 @@ function moneyRecordPane() {
   const todayTx = transactions.filter(t => t.date === today);
   const iconOf = c => c === '餐饮' ? '☕' : c === '交通' ? '🚕' : c === '购物' ? '🛒' : c === '工资' ? '💼' : '💳';
   const txHtml = arr => arr.length ? arr.map(t => `<div class="tx" data-tx-id="${t.id}"><div class="ic">${iconOf(t.category)}</div><div class="body"><div class="h-t-name">${esc(t.note || t.category)}</div><div class="muted" style="font-size:11.5px;color:var(--sub)">${t.time} · ${t.type === 'income' ? '收入' : '支出'} · ${t.category}</div></div><div class="amt ${t.type === 'income' ? 'inc' : ''}">${t.type === 'income' ? '+' : '-'}${t.amount.toFixed(2)}</div><button class="del-tx" data-del-tx="${t.id}">✕</button></div>`).join('') : '<p class="tip" style="color:#8A90A2">暂无记录</p>';
-  return `<div class="card"><div class="mic-wrap"><button class="mic" id="micBtn">🎙️</button><p class="mic-hint" id="micHint">长按说话，或点击开始/结束（默认 10 秒）</p><button class="btn-ghost-h" data-act="toggleManual" style="margin-top:12px;max-width:220px">⌨️ 手动输入文字</button><div class="text-input-area" id="textInputArea"><input type="text" id="manualTxInput" placeholder="如：午餐 35 元 / 发工资 8000"><button class="btn-ghost-h" data-act="parseManual" style="padding:11px">解析这笔</button></div></div><div id="txEditArea"></div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">今日明细 <span class="muted" style="color:var(--sub);font-size:11.5px">点条目可编辑</span></div>${txHtml(todayTx)}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">最近记录 <span class="muted" style="color:var(--sub);font-size:11.5px">共 ${transactions.length} 笔</span></div>${txHtml(transactions.slice(0, 10))}</div>`;
+  return `<div class="card"><div class="mic-wrap"><button class="mic" id="micBtn">🎙️</button><p class="mic-hint" id="micHint">点击开始/结束语音（默认 10 秒）</p><button class="btn-ghost-h" data-act="toggleManual" style="margin-top:12px;max-width:220px">⌨️ 手动输入文字</button><div class="text-input-area" id="textInputArea"><input type="text" id="manualTxInput" placeholder="如：午餐 35 元 / 发工资 8000"><button class="btn-ghost-h" data-act="parseManual" style="padding:11px">解析这笔</button></div></div><div id="txEditArea"></div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">今日明细 <span class="muted" style="color:var(--sub);font-size:11.5px">点条目可编辑</span></div>${txHtml(todayTx)}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">最近记录 <span class="muted" style="color:var(--sub);font-size:11.5px">共 ${transactions.length} 笔</span></div>${txHtml(transactions.slice(0, 10))}</div>`;
 }
-// ★ 记账图表
 function moneyBookPane() {
   const today = todayStr();
   const ym = today.slice(0, 7);
@@ -2212,8 +2287,6 @@ function moneyBookPane() {
   transactions.filter(t => t.type === 'expense' && t.date.startsWith(ym)).forEach(t => { cats[t.category] = (cats[t.category] || 0) + t.amount; });
   const catList = Object.entries(cats).sort((a, b) => b[1] - a[1]);
   const total = catList.reduce((s, [, v]) => s + v, 0) || 1;
-
-  // 近 7 天折线
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
@@ -2224,8 +2297,6 @@ function moneyBookPane() {
   const maxV = Math.max(...days.map(d => d.v), 1);
   const pts = days.map((d, i) => `${(i / 6) * 100},${100 - (d.v / maxV) * 85}`).join(' ');
   const area = `0,100 ${pts} 100,100`;
-
-  // 分类环形图
   const colors = ['#4f46e5', '#1FBFA9', '#FF6B5B', '#8B7CF6', '#4A9EFF', '#FF6FA5', '#F59E0B', '#10B981'];
   let angle = -90;
   const cx = 50, cy = 50, r = 38, ir = 22;
@@ -2241,19 +2312,12 @@ function moneyBookPane() {
     const large = pct > 0.5 ? 1 : 0;
     return `<path d="M${x0},${y0} A${r},${r} 0 ${large},1 ${x1},${y1} L${xi0},${yi0} A${ir},${ir} 0 ${large},0 ${xi1},${yi1} Z" fill="${colors[i % colors.length]}"/>`;
   }).join('');
-
   const catHtml = catList.length ? catList.map(([k, v], i) => `<div class="progress"><div class="bar" style="width:${(v / total * 100).toFixed(0)}%;background:${colors[i % colors.length]}"></div></div><div class="row-between" style="margin-bottom:10px"><span class="muted" style="font-size:12px;color:var(--sub)">${k}</span><span class="muted" style="font-size:12px;color:var(--sub)">¥${v.toFixed(0)} · ${(v / total * 100).toFixed(0)}%</span></div>`).join('') : '<p class="tip" style="color:#8A90A2">本月暂无支出</p>';
-
   return `<div class="balance"><div class="lab">本月支出</div><div class="big">¥ ${monthExpense.toFixed(2)}</div><div class="foot"><span>收入 ¥ ${monthIncome.toFixed(2)}</span><span>结余 ¥ ${(monthIncome - monthExpense).toFixed(2)}</span></div></div>
   <div class="chart-wrap">
     <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">近 7 天支出趋势</div>
     <svg class="chart-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#4f46e5" stop-opacity=".28"/>
-          <stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
+      <defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4f46e5" stop-opacity=".28"/><stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/></linearGradient></defs>
       <polygon points="${area}" fill="url(#areaGrad)"/>
       <polyline points="${pts}" fill="none" stroke="#4f46e5" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
     </svg>
@@ -2300,7 +2364,6 @@ function renderTxEditor() {
   </div>`;
 }
 
-/* 运动 */
 function sportSection() {
   const sub = state.sportSub || 'plan';
   const subs = [{ id: 'plan', label: '今日计划' }, { id: 'body', label: '身体/身材数据' }, { id: 'formal', label: '正式训练' }];
@@ -2314,10 +2377,8 @@ function sportPlanPane() {
   const plan = currentPlan();
   const sess = getSportSession();
   const info = getPlanDayInfo(new Date());
-  const weekInfo = info ? `第 ${info.weekIndex} 周 / 共 12 周` : (new Date() < PLAN_START ? '计划未开始' : '计划已结束');
+  const weekInfo = info ? `第 ${info.weekIndex} 周 / 共 12 周（有效训练日）` : (new Date() < PLAN_START ? '计划未开始' : '计划已结束');
   const completed = getCompletedTrainingCount();
-
-  // 12 周进度圆点
   const totalWeeks = 12;
   const dots = [];
   for (let i = 0; i < totalWeeks; i++) {
@@ -2326,12 +2387,6 @@ function sportPlanPane() {
     if (info && i === info.weekIndex - 1) cls.push('now');
     dots.push(`<i class="${cls.join(' ')}"></i>`);
   }
-  const currentWeekDots = [];
-  for (let i = 0; i < 7; i++) {
-    const cls = (info && i < info.dayOfWeek) ? 'on' : ((info && i === info.dayOfWeek) ? 'now' : '');
-    currentWeekDots.push(`<i class="${cls}"></i>`);
-  }
-
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const dow = (today.getDay() + 6) % 7;
   const monday = new Date(today); monday.setDate(monday.getDate() - dow);
@@ -2353,7 +2408,7 @@ function sportPlanPane() {
   if (!sess) { sessionBlock = `<div class="dim-row"><span class="lb">开始时间</span><input type="time" id="sportStartTime" value="${fmtTime(new Date())}" style="width:130px"></div><p class="tip" style="color:var(--sub);margin-top:8px;font-size:12.5px">设置开始时间后点击「开始打卡」。</p><button class="btn-primary" data-act="startSport" style="margin-top:14px">▶ 开始打卡</button>`; }
   else if (sess.endTs) { const total = sess.endTs - sess.startTs; const setCount = Object.values(sess.sets || {}).reduce((a, b) => a + b.length, 0); const totalMin = Math.floor(total / 60000); sessionBlock = `<div class="sport-timer">${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + ':' + pad(totalMin % 60) : totalMin + '分'}</div><div class="sport-timer-sub">本次训练总时长</div><div class="sport-meta"><span>开始 <b>${sess.startLabel || '—'}</b></span><span>结束 <b>${fmtTime(new Date(sess.endTs))}</b></span><span>完成组数 <b>${setCount}</b></span></div><div style="text-align:center"><span class="sport-done-badge">🎉 今日训练已完成</span></div><button class="btn-ghost-h" data-act="resetSport" style="margin-top:14px">↺ 重置今日打卡</button>`; }
   else { sessionBlock = `<div class="sport-timer" id="sportTimer">00:00</div><div class="sport-timer-sub">已训练时长（从 ${sess.startLabel || '—'} 开始）</div><div class="sport-meta"><span>已完成组数 <b id="sportSetCount">0</b></span><span>开始于 <b>${sess.startLabel || '—'}</b></span></div><button class="btn-ghost-h" data-act="endSport" style="margin-top:14px">■ 结束打卡</button><button class="btn-ghost-h" data-act="resetSport" style="margin-top:8px;background:#FFEDEA;color:var(--hot)">↺ 重置今日打卡</button>`; }
-  return `<div class="card" style="background:linear-gradient(135deg,var(--hot),var(--hot2));color:#fff;border:0;"><div style="font-size:19px;font-weight:750;margin-bottom:8px;">${esc(plan.label)}</div><div style="font-size:13.5px;opacity:.92;">${esc(plan.summary)} · ${plan.duration}</div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">训练打卡</div>${sessionBlock}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">本周固定结构 <span class="muted" style="color:var(--sub);font-size:11.5px">${weekInfo}</span></div>${weekRows.join('')}</div><div class="card" style="background:linear-gradient(135deg,#FFF6F2,#FFEDE6);border:1.5px solid #FFD9CC;"><div style="font-size:13px;font-weight:700;color:#E4573D;margin-bottom:6px;">📈 计划进度（基于完成次数）</div><div style="font-size:11.5px;color:#8A5A48;margin-bottom:6px;">已完成 <b>${completed}</b> 次训练（每 3 次推进 1 周）</div><div class="plan-dots">${dots.join('')}</div><div style="font-size:11px;color:#8A5A48;margin-top:10px;margin-bottom:4px;">本周 7 天</div><div class="plan-dots">${currentWeekDots.join('')}</div><div style="display:flex;gap:8px;margin-top:14px;"><button class="mini-add" data-act="resetPlanStart" style="flex:1">重置为今天</button><button class="mini-add ghost" data-act="shiftPlanStart" style="flex:1">往后顺延 1 周</button></div></div>`;
+  return `<div class="card" style="background:linear-gradient(135deg,var(--hot),var(--hot2));color:#fff;border:0;"><div style="font-size:19px;font-weight:750;margin-bottom:8px;">${esc(plan.label)}</div><div style="font-size:13.5px;opacity:.92;">${esc(plan.summary)} · ${plan.duration}</div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">训练打卡</div>${sessionBlock}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">本周固定结构 <span class="muted" style="color:var(--sub);font-size:11.5px">${weekInfo}</span></div>${weekRows.join('')}</div><div class="card" style="background:linear-gradient(135deg,#FFF6F2,#FFEDE6);border:1.5px solid #FFD9CC;"><div style="font-size:13px;font-weight:700;color:#E4573D;margin-bottom:6px;">📈 计划进度（休息日不占进度，自动顺延）</div><div style="font-size:11.5px;color:#8A5A48;margin-bottom:6px;">已完成 <b>${completed}</b> 次训练 · 当前第 <b>${info ? info.weekIndex : 1}</b> 周</div><div class="plan-dots">${dots.join('')}</div><div style="display:flex;gap:8px;margin-top:14px;"><button class="mini-add" data-act="resetPlanStart" style="flex:1">重置为今天</button><button class="mini-add ghost" data-act="shiftPlanStart" style="flex:1">往后顺延 1 周</button></div></div>`;
 }
 function sportBodyPane() {
   const todayRec = getBodyHistory().find(x => x.date === todayStr());
@@ -2384,7 +2439,6 @@ function sportFormalPane() {
   return html;
 }
 
-/* 衣橱 */
 function closetSection() {
   const sub = state.closetSub || 'add';
   const subs = [{ id: 'add', label: '增加衣服' }, { id: 'lib', label: '产品库' }, { id: 'free', label: '自由搭配台' }];
@@ -2414,7 +2468,6 @@ function closetFreePane() {
   return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">搭配台</div>${slotHTML}</div>`;
 }
 
-/* 护肤 */
 function careSection() {
   const sub = state.careSub || 'skin';
   const subs = [{ id: 'skin', label: '护肤' }, { id: 'supp', label: '补剂' }, { id: 'suppLib', label: '补剂库' }];
@@ -2463,7 +2516,7 @@ function openProductSheet(stepId) {
 }
 
 /* ================================================================
-   ⑲ 发现模块
+   ⑲ 发现
    ================================================================ */
 async function discoverView() {
   const sub = state.discoverSub;
@@ -2588,11 +2641,7 @@ async function recommendSection() {
       else if (todayCat === '工具') dataList = await RecommendSource.fetchTools();
     } catch (e) { console.warn(e); }
     if (!dataList || !dataList.length) {
-      // 兜底
-      dataList = [
-        { name: '人类简史', author: '尤瓦尔·赫拉利', emoji: '📖', why: '从认知革命到人工智能', web: () => 'https://weread.qq.com/' },
-        { name: '肖申克的救赎', author: '1994', emoji: '🎬', why: '关于希望的电影', web: () => 'https://www.themoviedb.org/' }
-      ];
+      dataList = [{ name: '今日推荐加载失败', author: '', emoji: '📚', why: '请检查网络后重试', web: () => '' }];
     }
     state.recData = { cat: todayCat, item: dataList[DAY % dataList.length] };
     state.recLoading = false;
@@ -2699,7 +2748,7 @@ async function fetchWeather() {
 }
 
 /* ================================================================
-   ㉓ Sheet 管理
+   ㉓ Sheet
    ================================================================ */
 let _sheetCloseTimer = null;
 function sheetHTML(html) { return `<div class="sheet-mask" data-act="closeSheet"></div><div class="sheet-body">${html}</div>`; }
@@ -2806,7 +2855,7 @@ function startRestTimer(code, sec) {
 function playBeep() { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = 880; o.type = 'sine'; g.gain.setValueAtTime(0.3, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8); o.start(); o.stop(ctx.currentTime + 0.8); } catch (e) {} }
 
 /* ================================================================
-   ㉔ AI 助手弹窗
+   ㉔ AI 助手
    ================================================================ */
 function openAIAssistant() {
   const msgs = LearnStore.getAIHistory();
@@ -2826,16 +2875,15 @@ async function sendAIMessage() {
 }
 
 /* ================================================================
-   ㉕ 导出 / 导入（含版本迁移）
+   ㉕ 导出 / 导入
    ================================================================ */
 function collectAllKV() {
   const kv = {};
   try {
     NativeStore.keys().forEach(k => {
       if (k.indexOf('cache:') === 0) return;
-      kv[k] = NativeStore.get(k, null);
-      // 序列化存储（保持原样）
-      try { kv[k] = JSON.stringify(kv[k]); } catch (e) { kv[k] = null; }
+      const raw = NativeStore.get(k, null);
+      try { kv[k] = JSON.stringify(raw); } catch (e) { kv[k] = null; }
     });
   } catch (e) {}
   return kv;
@@ -2888,8 +2936,6 @@ const LEGACY_KEY_MAP = {
 function doImportConfirm(text, fileName) {
   const raw = String(text).replace(/^\ufeff/, '');
   const trimmed = raw.trim();
-
-  // CSV
   if ((fileName && /\.csv$/i.test(fileName)) || (trimmed.indexOf('日期') === 0 || trimmed.indexOf('日期,') >= 0)) {
     const rows = parseLedgerCsv(raw);
     if (!rows.length) { toast('CSV 未解析出有效记录'); return; }
@@ -2902,18 +2948,13 @@ function doImportConfirm(text, fileName) {
     setTimeout(() => location.reload(), 700);
     return;
   }
-
   let d;
   try { d = JSON.parse(trimmed); } catch (e) { toast('文件不是有效的 JSON / CSV'); return; }
-
   let ok = false;
-
-  // 纯数组账本
   if (Array.isArray(d)) {
     const list = d.filter(x => x && (x.amount !== undefined || x.date)).map(x => ({
       id: x.id || (Date.now() + Math.floor(Math.random() * 1000)),
-      date: x.date || todayStr(),
-      time: x.time || '12:00',
+      date: x.date || todayStr(), time: x.time || '12:00',
       amount: parseFloat(x.amount) || 0,
       type: (x.type === '收入' || x.type === 'income') ? 'income' : 'expense',
       category: x.category || (x.type === '收入' ? '其他收入' : '其他'),
@@ -2926,8 +2967,6 @@ function doImportConfirm(text, fileName) {
     setTimeout(() => location.reload(), 700);
     return;
   }
-
-  // 新版全量备份 {app, version, kv}
   if (d.kv && typeof d.kv === 'object') {
     let n = 0;
     Object.keys(d.kv).forEach(k => {
@@ -2937,8 +2976,6 @@ function doImportConfirm(text, fileName) {
     ok = n > 0;
     if (ok) toast(`✓ 已恢复 ${n} 项数据`);
   }
-
-  // 旧版 App 备份 {version, app, data:{...}}
   if (!ok && d.data && typeof d.data === 'object') {
     let n = 0;
     Object.keys(d.data).forEach(oldKey => {
@@ -2954,8 +2991,6 @@ function doImportConfirm(text, fileName) {
     ok = n > 0;
     if (ok) toast(`✓ 已从旧版备份恢复 ${n} 项`);
   }
-
-  // 本 App v1 格式
   if (!ok && (d.learn || d.health)) {
     if (d.learn) {
       if (d.learn.learned) LS.set('learned:' + DAY, d.learn.learned);
@@ -2973,10 +3008,7 @@ function doImportConfirm(text, fileName) {
     if (h.suppLib || h.supplements) { suppLib = h.suppLib || h.supplements; saveSuppLib(); }
     if (h.profile) HealthStore.save('profile', h.profile);
     if (h.skinState) HealthStore.save('skinState', h.skinState);
-    if (Array.isArray(h.transactions)) {
-      const cur = LS.get('app_h_transactions', []);
-      LS.set('app_h_transactions', h.transactions.concat(cur));
-    }
+    if (Array.isArray(h.transactions)) { const cur = LS.get('app_h_transactions', []); LS.set('app_h_transactions', h.transactions.concat(cur)); }
     if (Array.isArray(h.clothes)) LS.set('app_h_clothes', h.clothes);
     if (h.skinProducts) HealthStore.save('skinProducts', h.skinProducts);
     if (h.planStart) LS.set('app_h_planStartDate', h.planStart);
@@ -2988,8 +3020,6 @@ function doImportConfirm(text, fileName) {
     ok = true;
     toast('✓ 已从 v1 备份恢复');
   }
-
-  // 直接键值对象
   if (!ok && (d.app_body || d.transactions || d.dailyChecks || d.app_supplements)) {
     let n = 0;
     Object.keys(d).forEach(k => {
@@ -3001,7 +3031,6 @@ function doImportConfirm(text, fileName) {
     ok = n > 0;
     if (ok) toast(`✓ 已恢复 ${n} 项`);
   }
-
   if (!ok) { toast('未识别的文件格式'); return; }
   setTimeout(() => location.reload(), 800);
 }
@@ -3014,7 +3043,7 @@ function clearAllData() {
 }
 
 /* ================================================================
-   ㉖ 语音识别（原生 → Web Speech → 讯飞兜底）
+   ㉖ 语音识别
    ================================================================ */
 let _voiceActive = false;
 let _webRec = null;
@@ -3036,7 +3065,6 @@ function setMicUI(listening, hintText) {
     if (cd) cd.textContent = '再次点击结束';
   }
 }
-
 function applyVoiceResult(text) {
   const v = String(text || '').trim();
   if (!v) { toast('没有识别到内容'); return; }
@@ -3053,34 +3081,32 @@ function applyVoiceResult(text) {
 function scrollToTxEditor() {
   setTimeout(() => { const area = document.getElementById('txEditArea'); if (area) area.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
 }
-
 window.__onSpeechResult = function (text, isFinal) {
   const interim = document.getElementById('voiceInterim');
   if (interim && text) interim.textContent = text;
   if (isFinal) {
     _voiceActive = false;
-    setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+    setMicUI(false, '点击开始/结束语音（默认 10 秒）');
     applyVoiceResult(text);
   }
 };
 window.__onSpeechEnd = function () {
   if (!_voiceActive) return;
   _voiceActive = false;
-  setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+  setMicUI(false, '点击开始/结束语音（默认 10 秒）');
 };
 window.__onSpeechError = function (msg) {
   _voiceActive = false;
-  setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+  setMicUI(false, '点击开始/结束语音（默认 10 秒）');
   if (msg && msg !== 'no-speech' && msg !== 'client') toast('识别失败：' + msg);
 };
-
 function startWebSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return false;
   try {
     _webRec = new SR();
     _webRec.lang = 'zh-CN';
-    _webRec.continuous = true;   // ★ 连续识别，由倒计时或用户停止
+    _webRec.continuous = true;
     _webRec.interimResults = true;
     let finalText = '';
     _webRec.onresult = (ev) => {
@@ -3094,13 +3120,12 @@ function startWebSpeech() {
       if (el) el.textContent = finalText + interim;
     };
     _webRec.onerror = (ev) => {
-      _voiceActive = false; setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+      _voiceActive = false; setMicUI(false, '点击开始/结束语音（默认 10 秒）');
       if (ev.error !== 'no-speech' && ev.error !== 'aborted') toast('识别失败：' + ev.error);
     };
     _webRec.onend = () => {
       if (_voiceActive) {
-        // 仍未主动停止，但系统自动结束（一般不会）
-        _voiceActive = false; setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+        _voiceActive = false; setMicUI(false, '点击开始/结束语音（默认 10 秒）');
         if (finalText) applyVoiceResult(finalText);
       }
     };
@@ -3108,10 +3133,8 @@ function startWebSpeech() {
     return true;
   } catch (e) { console.warn('Web Speech 启动失败', e); return false; }
 }
-
 function startVoiceInput() {
   if (_voiceActive) {
-    // 再次点击 → 结束
     _voiceActive = false;
     clearTimeout(_voiceTimer);
     try { if (window.AndroidSTT && AndroidSTT.stop) AndroidSTT.stop(); } catch (e) {}
@@ -3120,7 +3143,6 @@ function startVoiceInput() {
     setMicUI(false, '正在识别…');
     return;
   }
-
   _voiceActive = true;
   _voiceStartTs = Date.now();
   setMicUI(true, '正在聆听…（10 秒后自动结束）');
@@ -3128,8 +3150,6 @@ function startVoiceInput() {
   if (ov) ov.textContent = '正在聆听…';
   const cd = document.getElementById('voiceCountdown');
   if (cd) cd.textContent = '10 秒后自动结束';
-
-  // 倒计时显示
   clearInterval(_voiceTimer);
   _voiceTimer = setInterval(() => {
     const left = Math.max(0, 10 - Math.floor((Date.now() - _voiceStartTs) / 1000));
@@ -3145,20 +3165,15 @@ function startVoiceInput() {
       }
     }
   }, 250);
-
-  // ① 原生 Android STT
   if (window.AndroidSTT && typeof AndroidSTT.start === 'function') {
     try { AndroidSTT.start('zh-CN'); return; } catch (e) { console.error('原生 STT 失败', e); }
   }
-  // ② Web Speech
   if (window.SpeechRecognition || window.webkitSpeechRecognition) {
     if (startWebSpeech()) return;
   }
-  // ③ 讯飞 WebSocket
   startXunfeiRecognition();
 }
 
-// 讯飞 WebSocket（兜底）
 const XUNFEI_CONFIG = {
   APPID: "4c627b59",
   API_SECRET: "YzI1MDJmYWM0NTliNzNkMjl3NGIyM2Uz",
@@ -3172,7 +3187,7 @@ async function getWebSocketUrl() {
   const date = new Date().toUTCString();
   const signatureOrigin = `host: ${XUNFEI_CONFIG.HOST}\ndate: ${date}\nGET ${XUNFEI_CONFIG.PATH} HTTP/1.1`;
   const enc = new TextEncoder();
-  if (!crypto || !crypto.subtle) throw new Error('crypto.subtle 不可用（页面可能不是 https）');
+  if (!crypto || !crypto.subtle) throw new Error('crypto.subtle 不可用');
   const key = await crypto.subtle.importKey('raw', enc.encode(XUNFEI_CONFIG.API_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sigBuf = await crypto.subtle.sign('HMAC', key, enc.encode(signatureOrigin));
   const signature = btoa(String.fromCharCode(...new Uint8Array(sigBuf)));
@@ -3193,7 +3208,7 @@ async function startXunfeiRecognition() {
       isRecording = true; _xunfeiActive = true;
       xunfeiSocket.send(JSON.stringify({
         common: { app_id: XUNFEI_CONFIG.APPID },
-        business: { language: 'zh_cn', domain: 'iat', accent: 'mandarin', vad_eos: 10000, dwa: 'wpgs' }, // ★ 10 秒静音检测
+        business: { language: 'zh_cn', domain: 'iat', accent: 'mandarin', vad_eos: 10000, dwa: 'wpgs' },
         data: { status: 0, format: 'audio/L16;rate=16000', encoding: 'raw' }
       }));
       processor.onaudioprocess = (e) => {
@@ -3231,7 +3246,7 @@ async function startXunfeiRecognition() {
     console.error(err);
     toast('无法访问麦克风：' + (err.message || err));
     _voiceActive = false; _xunfeiActive = false;
-    setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+    setMicUI(false, '点击开始/结束语音（默认 10 秒）');
   }
 }
 function stopXunfeiRecognition() {
@@ -3243,7 +3258,7 @@ function stopXunfeiRecognition() {
     try { xunfeiSocket.send(JSON.stringify({ data: { status: 2, format: 'audio/L16;rate=16000', encoding: 'raw', audio: '' } })); } catch (e) {}
     setTimeout(() => { try { if (xunfeiSocket) xunfeiSocket.close(); } catch (e) {} xunfeiSocket = null; }, 500);
   } else xunfeiSocket = null;
-  setMicUI(false, '长按说话，或点击开始/结束（默认 10 秒）');
+  setMicUI(false, '点击开始/结束语音（默认 10 秒）');
 }
 
 /* ================================================================
@@ -3264,31 +3279,10 @@ function doGlobalSearch(q) {
   q = q.trim().toLowerCase();
   if (!q) { el.innerHTML = ''; return; }
   const groups = { valve: [], word: [], tx: [], todo: [] };
-
-  SEED.VALVE_ALL.forEach(v => {
-    if (v.q.toLowerCase().includes(q) || v.a.toLowerCase().includes(q)) {
-      groups.valve.push({ q: v.q, s: v.a.slice(0, 80), raw: v });
-    }
-  });
-  Object.keys(DeckLoader.loaded).forEach(id => {
-    (DeckLoader.loaded[id] || []).forEach(w => {
-      if (w.w.toLowerCase().includes(q) || (w.cn || '').toLowerCase().includes(q)) {
-        groups.word.push({ q: w.w, s: w.cn || '', raw: w });
-      }
-    });
-  });
-  transactions.forEach(t => {
-    const hay = (t.note || '') + ' ' + (t.category || '');
-    if (hay.toLowerCase().includes(q)) {
-      groups.tx.push({ q: t.note || t.category, s: `${t.date} ${t.time} · ¥${t.amount}`, raw: t });
-    }
-  });
-  getAllTodoItems().forEach(it => {
-    if ((it.title || '').toLowerCase().includes(q) || (it.desc || '').toLowerCase().includes(q)) {
-      groups.todo.push({ q: it.title, s: `${it.date} ${it.time} · ${it.desc || ''}`, raw: it });
-    }
-  });
-
+  SEED.VALVE_ALL.forEach(v => { if (v.q.toLowerCase().includes(q) || v.a.toLowerCase().includes(q)) groups.valve.push({ q: v.q, s: v.a.slice(0, 80), raw: v }); });
+  Object.keys(DeckLoader.loaded).forEach(id => { (DeckLoader.loaded[id] || []).forEach(w => { if (w.w.toLowerCase().includes(q) || (w.cn || '').toLowerCase().includes(q)) groups.word.push({ q: w.w, s: w.cn || '', raw: w }); }); });
+  transactions.forEach(t => { const hay = (t.note || '') + ' ' + (t.category || ''); if (hay.toLowerCase().includes(q)) groups.tx.push({ q: t.note || t.category, s: `${t.date} ${t.time} · ¥${t.amount}`, raw: t }); });
+  getAllTodoItems().forEach(it => { if ((it.title || '').toLowerCase().includes(q) || (it.desc || '').toLowerCase().includes(q)) groups.todo.push({ q: it.title, s: `${it.date} ${it.time} · ${it.desc || ''}`, raw: it }); });
   const badge = { valve: ['知识', '#eef0ff', '#4f46e5'], word: ['单词', '#ecfdf5', '#047857'], tx: ['账本', '#fff4e0', '#b45309'], todo: ['待办', '#eaf3ff', '#1e40af'] };
   const label = { valve: '专业知识', word: '英语单词', tx: '账本记录', todo: '待办事项' };
   let html = '';
@@ -3305,7 +3299,6 @@ function doGlobalSearch(q) {
     });
   });
   el.innerHTML = html || `<div style="text-align:center;padding:20px;font-size:12.5px;color:var(--sub);">没有找到</div>`;
-
   el.querySelectorAll('.item').forEach(node => {
     node.addEventListener('click', () => {
       const info = JSON.parse(node.dataset.goto);
@@ -3371,7 +3364,6 @@ function initWalkReminder() {
   if (_walkTimerHandle) clearInterval(_walkTimerHandle);
   _walkTimerHandle = setInterval(() => checkWalkReminder(false), 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkWalkReminder(false); });
-  // 通知原生启动前台服务
   if (window.AndroidNotify && typeof AndroidNotify.startReminderService === 'function') {
     try { AndroidNotify.startReminderService(); } catch (e) {}
   }
@@ -3398,7 +3390,6 @@ view.addEventListener('input', e => {
 view.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
-
   if (act === 'speak') { e.stopPropagation(); toggleSpeak(t.dataset.text, t.dataset.lang || 'en-US', t); return; }
   if (act === 'copyText') { copyText(t.dataset.text).then(ok => toast(ok ? '已复制' : '复制失败')); return; }
   if (act === 'openNews') { openExternal(t.dataset.url); return; }
@@ -3415,7 +3406,6 @@ view.addEventListener('click', async e => {
     toast(mode === 'original' ? '已恢复为正常状态' : '已切换身体状态');
     return;
   }
-
   if (act === 'studySub') { state.studySub = t.dataset.sub; render(); return; }
   if (act === 'englishSub') { state.englishSub = t.dataset.sub; state.englishPage = 1; render(); return; }
   if (act === 'englishDeck') { state.englishDeck = t.dataset.deck; LS.set('english-deck', state.englishDeck); state.englishPage = 1; render(); return; }
@@ -3513,14 +3503,12 @@ view.addEventListener('click', async e => {
     finally { t.disabled = false; t.textContent = '🔄 重新评分'; }
     return;
   }
-
   if (act === 'lifeSub') { state.lifeSub = t.dataset.sub; render(); return; }
   if (act === 'calendarSub') { state.calendarSub = t.dataset.sub; render(); return; }
   if (act === 'moneySub') { state.moneySub = t.dataset.sub; render(); return; }
   if (act === 'sportSub') { state.sportSub = t.dataset.sub; render(); return; }
   if (act === 'closetSub') { state.closetSub = t.dataset.sub; render(); return; }
   if (act === 'careSub') { state.careSub = t.dataset.sub; render(); return; }
-
   if (act === 'prevMonth') { state.calMonth--; if (state.calMonth < 0) { state.calMonth = 11; state.calYear--; } HealthStore.save('calMonth', state.calMonth); HealthStore.save('calYear', state.calYear); render(); return; }
   if (act === 'nextMonth') { state.calMonth++; if (state.calMonth > 11) { state.calMonth = 0; state.calYear++; } HealthStore.save('calMonth', state.calMonth); HealthStore.save('calYear', state.calYear); render(); return; }
   if (act === 'backToToday') { const now = new Date(); state.calYear = now.getFullYear(); state.calMonth = now.getMonth(); state.selectedDate = todayStr(); render(); return; }
@@ -3535,7 +3523,6 @@ view.addEventListener('click', async e => {
     saveManualTodos(saved);
     render(); return;
   }
-
   if (act === 'toggleManual') { const a = document.getElementById('textInputArea'); if (a) a.classList.toggle('show'); return; }
   if (act === 'parseManual') {
     const v = document.getElementById('manualTxInput').value.trim();
@@ -3547,7 +3534,6 @@ view.addEventListener('click', async e => {
   if (act === 'setExportRange') { state.exportRange = t.dataset.range; HealthStore.save('exportRange', state.exportRange); render({ keepScroll: true }); return; }
   if (act === 'exportCsv') { exportCsv(); return; }
   if (act === 'importTxCsv') { importTransactionsCsv(); return; }
-
   if (act === 'setTxType') {
     if (!state.pendingTx) return;
     state.pendingTx.type = t.dataset.t;
@@ -3575,7 +3561,6 @@ view.addEventListener('click', async e => {
     toast('已保存');
     render(); return;
   }
-
   if (act === 'startSport') {
     const t0 = document.getElementById('sportStartTime');
     const label = (t0 && t0.value) || fmtTime(new Date());
@@ -3615,7 +3600,6 @@ view.addEventListener('click', async e => {
     toast(`已保存 ${cnt} 项身材尺寸`);
     render({ keepScroll: true }); return;
   }
-
   if (act === 'saveCloth') {
     const name = document.getElementById('clothName').value.trim();
     const cat = document.getElementById('clothCat').value;
@@ -3632,7 +3616,6 @@ view.addEventListener('click', async e => {
     render(); return;
   }
   if (act === 'delCloth') { if (!confirm('删除这件单品？')) return; clothes = clothes.filter(c => c.id !== Number(t.dataset.id)); LS.set('app_h_clothes', clothes); render(); return; }
-
   if (act === 'setSkin') { skinState = t.dataset.skin; HealthStore.save('skinState', skinState); render(); return; }
   if (act === 'setProfileDraft') { state.profileDraft[t.dataset.key] = t.dataset.val; render({ keepScroll: true }); return; }
   if (act === 'confirmProfile') { Object.keys(state.profileDraft).forEach(k => { profile[k] = state.profileDraft[k]; }); HealthStore.save('profile', profile); toast('已保存'); render({ keepScroll: true }); return; }
@@ -3680,7 +3663,6 @@ view.addEventListener('click', async e => {
     saveSuppLib();
     render(); return;
   }
-
   if (act === 'saveAI') { const provider = document.getElementById('aiProvider').value; const key = document.getElementById('aiKey').value.trim(); if (provider !== 'none' && !key) { toast('请填入 API Key'); return; } AI.set(provider, key, ''); toast(provider === 'none' ? '已关闭 AI' : '已保存'); render({ keepScroll: true }); return; }
   if (act === 'exportData') { doExport(); return; }
   if (act === 'importData') { doImport(); return; }
@@ -3789,7 +3771,6 @@ view.addEventListener('change', e => {
   }
 });
 
-// Sheet 事件
 sheet.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
@@ -3815,20 +3796,15 @@ sheet.addEventListener('click', async e => {
   if (act === 'removeProduct') { const stepId = state.pickingSkinStep; if (stepId) { delete skinProducts[stepId]; saveSkinProducts(); } closeSheet(); render({ keepScroll: true }); return; }
 });
 
-// 语音记账：点击麦克风
 view.addEventListener('click', e => {
   const mic = e.target.closest('#micBtn');
   if (!mic) return;
   startVoiceInput();
 });
-
-// 全局搜索
 document.getElementById('globalSearchBtn').addEventListener('click', openGlobalSearch);
 document.getElementById('gsClose').addEventListener('click', closeGlobalSearch);
 document.getElementById('gsInput').addEventListener('input', e => doGlobalSearch(e.target.value));
 document.getElementById('searchOverlay').addEventListener('click', e => { if (e.target.id === 'searchOverlay') closeGlobalSearch(); });
-
-// Tab / FAB
 tabbar.addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (!t) return;
   stopSpeak(); state.tab = t.dataset.tab; render();
@@ -3847,16 +3823,12 @@ window.addEventListener('beforeunload', () => {
    ㉚ 初始化
    ================================================================ */
 (async function init() {
-  // 加载 API 密钥（原生优先）
   try { await ApiKeys.load(); } catch (e) { console.warn('ApiKeys load failed', e); }
-
   loadDataFromGlobals();
   buildCalendarFromPlans();
   LearnStore.checkIn();
   render();
   initWalkReminder();
-
-  // 每秒刷新运动计时
   setInterval(() => {
     const el = document.getElementById('sportTimer');
     if (el) {
