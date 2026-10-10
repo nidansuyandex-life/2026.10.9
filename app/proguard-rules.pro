@@ -1,14 +1,10 @@
-# 未开启 minify，此文件可留空
+# 保留 JS 桥方法（否则 release 版 @JavascriptInterface 会被混淆）
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class com.example.dailyhealth.** { *; }
 
-# 如果以后开启，保留 JS 接口
--keepclassmembers class com.example.dailyhealth.NativeBridge {
-    public *;
-}
--keepclassmembers class com.example.dailyhealth.VoiceBridge {
-    public *;
-}
--keepclassmembers class com.example.dailyhealth.FileBridge {
-    public *;
-}
+# 讯飞 SparkChain（若使用）
 -keep class com.iflytek.sparkchain.** { *; }
 -keep class com.iflytek.cloud.** { *; }
+-dontwarn com.iflytek.**
