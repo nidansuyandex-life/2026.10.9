@@ -1,8 +1,10 @@
 package com.example.dailyhealth
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.*
+import android.os.Build
+import android.os.Bundle
 import android.webkit.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -15,7 +17,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1) 请求运行时权限（麦克风 + 通知）
+        // 请求运行时权限
         val need = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) need += Manifest.permission.RECORD_AUDIO
@@ -25,7 +27,7 @@ class MainActivity : AppCompatActivity() {
         if (need.isNotEmpty())
             ActivityCompat.requestPermissions(this, need.toTypedArray(), 100)
 
-        // 2) 初始化讯飞 SparkChain（如不需要可注释）
+        // 讯飞 SparkChain 初始化（不用可注释）
         VoiceBridge.init(this)
 
         webView = WebView(this)
@@ -39,36 +41,37 @@ class MainActivity : AppCompatActivity() {
             allowContentAccess = true
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            // 关键：允许 file:// 页面读取同目录/子目录资源
-            if (Build.VERSION.SDK_INT >= 16) {
-                @Suppress("DEPRECATION")
-                allowFileAccessFromFileURLs = true
-                @Suppress("DEPRECATION")
-                allowUniversalAccessFromFileURLs = true
-            }
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = true
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = true
             cacheMode = WebSettings.LOAD_DEFAULT
         }
 
         webView.webChromeClient = WebChromeClient()
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedError(
+                view: WebView?, request: WebResourceRequest?, error: WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                if (Build.VERSION.SDK_INT >= 23) {
+                    android.util.Log.e("WV", "err ${request?.url} : ${error?.description}")
+                }
+            }
+        }
 
-        // 3) 注入原生桥
-        webView.addJavascriptInterface(NativeBridge(this, webView), "AndroidNative")
+        // 三个桥
+        val native = NativeBridge(this, webView)
+        webView.addJavascriptInterface(native, "AndroidNative")
         webView.addJavascriptInterface(VoiceBridge(this, webView), "AndroidVoice")
         webView.addJavascriptInterface(FileBridge(this, webView), "AndroidFile")
-        // 兼容旧代码里的 AndroidTTS 名字（转发到 NativeBridge）
-        webView.addJavascriptInterface(TTSCompat(this), "AndroidTTS")
+        // 兼容旧名字
+        webView.addJavascriptInterface(native, "AndroidTTS")
 
         webView.loadUrl("file:///android_asset/index.html")
     }
 
-    /** 兼容旧 HTML 里的 AndroidTTS.speak / stop 调用 */
-    inner class TTSCompat(private val act: MainActivity) {
-        @JavascriptInterface fun speak(text: String, lang: String) =
-            NativeBridge(act, webView).speak(text, lang)
-        @JavascriptInterface fun stop() = NativeBridge(act, webView).stopSpeak()
-    }
-
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
@@ -76,5 +79,35 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         VoiceBridge.release()
         super.onDestroy()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 9999 && resultCode == RESULT_OK) {
+            val uri = data?.data ?: return
+            try {
+                val text = contentResolver.openInputStream(uri)
+                    ?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+                val js = "window.__onFilePicked && window.__onFilePicked(${escapeJs(text)})"
+                webView.evaluateJavascript(js, null)
+            } catch (e: Exception) {
+                android.util.Log.e("FileBridge", "read error", e)
+            }
+        }
+    }
+
+    private fun escapeJs(s: String): String {
+        return "\"" + s.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029") + "\""
     }
 }
