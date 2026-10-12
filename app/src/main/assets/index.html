@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <meta name="theme-color" content="#f6f7fb">
 <title>日常 · 健康生活</title>
 <script src="./data/decks.js"></script>
@@ -363,6 +363,7 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid #e6e8f0
       </div>
     </div>
   </div>
+  <audio id="ttsPlayer" preload="auto"></audio>
 </div>
 
 <script>
@@ -858,26 +859,30 @@ function setOverride(date, mode){
 }
 function getOverride(date){ return getOverrides()[localDateStr(date)] || null; }
 
-/* ★ 补丁 5：休息/请假/经期自动顺延训练日 */
-function countRestDaysBefore(target){
-  const t = new Date(target); t.setHours(0,0,0,0);
-  let cnt = 0;
-  const cur = new Date(PLAN_START);
-  while (cur < t){
-    const ov = getOverride(cur);
-    if (ov === 'leave' || ov === 'period' || ov === 'rest') cnt++;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return cnt;
-}
+// ★ 修改：休息/请假/经期不占用训练日，自动顺延
 function getPlanDayInfo(date = new Date()){
   const d = new Date(date); d.setHours(0,0,0,0);
-  if (d < PLAN_START) return null;
-  const rawDiff = Math.floor((d - PLAN_START) / 86400000);
-  const restDays = countRestDaysBefore(d);
-  const diff = rawDiff - restDays;
-  if (diff < 0 || diff >= 84) return null;
-  return { diff, weekIndex: Math.floor(diff / 7) + 1, dayOfWeek: diff % 7 };
+  const start = new Date(PLAN_START); start.setHours(0,0,0,0);
+  if (d < start) return null;
+
+  const ov = getOverride(d);
+  if (ov === 'leave' || ov === 'period' || ov === 'rest') return null;
+
+  let effective = 0;
+  const cur = new Date(start);
+  while (cur < d){
+    const o = getOverride(cur);
+    if (o !== 'leave' && o !== 'period' && o !== 'rest') effective++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  if (effective >= 84) return null;
+
+  return {
+    diff: Math.floor((d - start) / 86400000),
+    effective,
+    weekIndex: Math.floor(effective / 7) + 1,
+    dayOfWeek: effective % 7
+  };
 }
 
 const BODY_DEFAULT = { height:165, weight:51.7, bodyFat:33, shoulder:38, neck:32, bust:86, underbust:74, waist:68, abdomen:78, hip:92, upperArm:27, forearm:23, wrist:15.5, thigh:52, calf:34, ankle:21, armLength:56, legLength:96, inseam:72, footLength:23.5, footWidth:9 };
@@ -1075,6 +1080,8 @@ function getRangeTransactions(){
   if (state.exportRange === '3months'){ const c = new Date(); c.setMonth(c.getMonth() - 2); const cut = `${c.getFullYear()}-${pad(c.getMonth()+1)}-01`; return list.filter(t => t.date >= cut); }
   return list;
 }
+
+// ★ 导出 CSV：优先用原生保存
 function exportCsv(){
   const list = getRangeTransactions();
   if (!list.length){ toast('所选时间范围内没有记录'); return; }
@@ -1083,32 +1090,23 @@ function exportCsv(){
   const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
   const rangeLabel = { month:'本月', lastMonth:'上月', '3months':'近3月', all:'全部' }[state.exportRange];
   const filename = `账单_${rangeLabel}_${todayStr()}.csv`;
-  const bom = '\ufeff';
-  if (window.AndroidFile && AndroidFile.saveFile){
-    const ok = AndroidFile.saveFile(bom + csv, filename, 'text/csv');
-    toast(ok ? '已保存到 Downloads/DailyHealth' : '保存失败');
-    return;
+  const content = '\ufeff' + csv;
+
+  if (window.AndroidFile && typeof AndroidFile.saveFile === 'function'){
+    try { AndroidFile.saveFile(content, filename, 'text/csv'); return; }
+    catch(e){ console.error(e); }
   }
-  const blob = new Blob([bom + csv], { type:'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
-  toast('已导出：' + filename);
+  try {
+    const blob = new Blob([content], { type:'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
+    toast('已导出：' + filename);
+  } catch(err){ toast('导出失败：' + err.message); }
 }
 
-/* ★ 补丁 9：CSV 导入走原生文件桥 */
 function importTransactionsCsv(){
-  if (window.AndroidFile && AndroidFile.pickFile){
-    window.__onFilePicked = (text) => {
-      try {
-        const blob = new Blob([text], { type:'text/csv' });
-        doImportCsv(blob);
-      } catch(e){ toast('导入失败：' + e.message); }
-    };
-    AndroidFile.pickFile('csv');
-    return;
-  }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.csv,text/csv,text/comma-separated-values';
@@ -1128,7 +1126,7 @@ function doImportCsv(file){
   const reader = new FileReader();
   reader.onload = function(ev){
     try {
-      const raw = String(ev.target.result).replace(/^\ufeff/, '');
+      const raw = ev.target.result.replace(/^\ufeff/, '');
       const lines = raw.split(/\r?\n/).filter(l => l.trim());
       if (lines.length < 2) { toast('CSV 文件为空或格式不正确'); return; }
       const parseCsvLine = (line) => {
@@ -1251,75 +1249,83 @@ async function fetchWeather(){
   }
 }
 
-/* ★★★ 补丁 1：语音统一走原生桥，多级回退 ★★★ */
+// ================================================================
+// ★ 语音：优先原生 AndroidTTS，再退化到 speechSynthesis / 有道
+// ================================================================
 let _currentSpeakBtn = null;
 let _speakSeq = 0;
 
 function stopSpeak(){
-  try { if (window.AndroidNative && AndroidNative.stopSpeak) AndroidNative.stopSpeak(); } catch(e){}
-  try { if (window.AndroidTTS && AndroidTTS.stop) AndroidTTS.stop(); } catch(e){}
+  try { if (window.AndroidTTS && AndroidTTS.stopSpeak) AndroidTTS.stopSpeak(); } catch(e){}
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e){}
   try { const p = document.getElementById('ttsPlayer'); if (p){ p.pause(); p.currentTime = 0; } } catch(e){}
   document.querySelectorAll('.playing').forEach(b => b.classList.remove('playing'));
   _currentSpeakBtn = null;
   _speakSeq++;
 }
+
 function toggleSpeak(text, lang, btn){
   if (!text) { toast('没有内容可朗读'); return; }
   const wasPlaying = btn && btn.classList.contains('playing');
   stopSpeak();
-  if (wasPlaying) return;
-  const langStr = (lang || 'en-US');
-  const seq = ++_speakSeq;
-  if (btn){ btn.classList.add('playing'); _currentSpeakBtn = btn; }
-  const clearPlaying = () => {
-    if (seq !== _speakSeq) return;
-    if (_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing');
-    _currentSpeakBtn = null;
-  };
+  if (wasPlaying) return;  // ★ 再次点击时停止
 
-  // ① 原生桥（Android）
-  if (window.AndroidNative && typeof AndroidNative.speak === 'function'){
-    try {
-      AndroidNative.speak(String(text), langStr);
-      const ms = Math.max(1500, Math.min(30000, String(text).length * 180));
-      setTimeout(clearPlaying, ms);
-      return;
-    } catch(e){ console.warn('AndroidNative.speak failed', e); }
-  }
-  // ② 兼容旧桥名
+  const langStr = lang || 'en-US';
+  const seq = ++_speakSeq;
+  if (btn) { btn.classList.add('playing'); _currentSpeakBtn = btn; }
+
+  // ① 优先原生 AndroidTTS
   if (window.AndroidTTS && typeof AndroidTTS.speak === 'function'){
     try {
       AndroidTTS.speak(String(text), langStr);
-      const ms = Math.max(1500, Math.min(30000, String(text).length * 180));
-      setTimeout(clearPlaying, ms);
+      const ms = Math.max(1500, Math.min(60000, String(text).length * 200));
+      setTimeout(() => {
+        if (seq === _speakSeq && _currentSpeakBtn){
+          _currentSpeakBtn.classList.remove('playing');
+          _currentSpeakBtn = null;
+        }
+      }, ms);
       return;
-    } catch(e){}
+    } catch(e){ console.error('AndroidTTS 失败', e); }
   }
-  // ③ 浏览器 WebSpeech
+
+  // ② 浏览器 speechSynthesis
   if (window.speechSynthesis){
     try {
       const u = new SpeechSynthesisUtterance(String(text));
       u.lang = langStr;
-      u.onend = clearPlaying; u.onerror = clearPlaying;
+      u.rate = 0.95;
+      u.onend = () => {
+        if (seq === _speakSeq && _currentSpeakBtn){
+          _currentSpeakBtn.classList.remove('playing');
+          _currentSpeakBtn = null;
+        }
+      };
       speechSynthesis.speak(u);
       return;
     } catch(e){}
   }
-  // ④ 有道兜底
+
+  // ③ 有道在线 TTS 兜底
   const player = document.getElementById('ttsPlayer');
-  if (!player){ toast('朗读失败：没有音频播放器'); return; }
+  if (!player) { toast('朗读失败：没有音频播放器'); return; }
   const isZh = langStr.startsWith('zh');
   const trimmed = String(text).slice(0, 800);
   const url = isZh
     ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed)}&le=zh`
     : `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(trimmed)}&type=2`;
   player.src = url;
-  player.onended = clearPlaying;
-  player.onerror = () => { clearPlaying(); toast('朗读失败，请检查网络'); };
+  const cleanup = () => {
+    if (seq !== _speakSeq) return;
+    if (_currentSpeakBtn) _currentSpeakBtn.classList.remove('playing');
+    _currentSpeakBtn = null;
+  };
+  player.onended = cleanup;
+  player.onerror = () => { cleanup(); toast('朗读失败，请检查网络'); };
   const p = player.play();
-  if (p && p.catch) p.catch(() => { clearPlaying(); toast('朗读被拦截，请再点一次'); });
+  if (p && p.catch) p.catch(() => { cleanup(); toast('朗读被拦截，请再点一次'); });
 }
+
 function copyText(text){
   return new Promise(resolve => {
     if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(()=>resolve(true)).catch(()=>resolve(false)); return; }
@@ -1447,6 +1453,7 @@ function homeView(){
   const ovMap = { swim:'游泳', reduced:'减量训练', period:'经期休息', leave:'请假', rest:'休息' };
   let sportText = plan.label;
   if (ov && ovMap[ov]) sportText = ovMap[ov];
+
   const showProtein = (!ov) || ov === 'swim' || ov === 'reduced';
 
   const fixedItems = [
@@ -1460,9 +1467,18 @@ function homeView(){
     { time:'22:00', text:'洗漱（护肤）', sub:'晚间护理', action:'skin-night', badge:'晚间', checkKey: `home_${t}_skin_pm` },
     { time:'22:30', text:'睡前 90/90 呼吸', checkKey: `home_${t}_breathe` }
   ];
+
   if (showProtein){
-    fixedItems.splice(7, 0, { time:'20:30', text:'吃蛋白粉', sub:'训练后 20–25g 蛋白粉', action:'supplement', badge:'补剂', checkKey: `home_${t}_protein` });
+    fixedItems.splice(7, 0, {
+      time:'20:30',
+      text:'吃蛋白粉',
+      sub:'训练后 20–25g 蛋白粉',
+      action:'supplement',
+      badge:'补剂',
+      checkKey: `home_${t}_protein`
+    });
   }
+
   const todoItems = manualTodos.map(mt => ({
     time: mt.time || '99:99',
     text: mt.title,
@@ -1587,7 +1603,7 @@ async function englishSection(){
   }
   if (sub === 'all'){
     const pageSize = state.englishPage * PAGE_SIZE; const visible = deckWords.slice(0, pageSize); const hasMore = deckWords.length > pageSize;
-    return head + `<div class="sec-title">全部单词 <span class="muted">${visible.length}/${deckWords.length}</span></div>${visible.map((w) => { const done = learnedAll.has(w.w); return `<div class="word-mini ${done?'done':''}" data-word="${esc(w.w)}" data-deck="${esc(w.deck||'')}" data-act="learnWord"><div class="wm-check ${done?'on':''}">${done?'✓':''}</div><div class="wm-word">${esc(w.w)}</div><div class="wm-cn">${esc(w.cn||'')}</div><button style="border:0;background:#f3f4fa;width:30px;height:30px;border-radius:9px;font-size:13px;cursor:pointer;" data-act="speak" data-text="${esc(w.w)}" data-lang="en-US" onclick="event.stopPropagation();">🔊</button></div>`; }).join('')}${hasMore?`<button class="load-more" data-act="englishLoadMore">加载更多（还有 ${deckWords.length - pageSize} 个）</button>`:''}`;
+    return head + `<div class="sec-title">全部单词 <span class="muted">${visible.length}/${deckWords.length}</span></div>${visible.map((w) => { const done = learnedAll.has(w.w); return `<div class="word-mini ${done?'done':''}" data-word="${esc(w.w)}" data-deck="${esc(w.deck||'')}" data-act="learnWord"><div class="wm-check ${done?'on':''}">${done?'✓':''}</div><div class="wm-word">${esc(w.w)}</div><div class="wm-cn">${esc(w.cn||'')}</div></div>`; }).join('')}${hasMore?`<button class="load-more" data-act="englishLoadMore">加载更多（还有 ${deckWords.length - pageSize} 个）</button>`:''}`;
   }
   if (sub === 'learned'){
     const list = deckWords.filter(w => learnedAll.has(w.w));
@@ -1598,14 +1614,14 @@ async function englishSection(){
   return head;
 }
 
-/* ★ 补丁 2：单词卡只保留 1 个喇叭，一次读"单词 + 例句" */
+// ★ wordCard：单喇叭，朗读单词 + 例句
 function wordCard(w, i, isDone, isDoneToday){
-  const speakText = (w.w || '') + (w.scene ? '. ' + w.scene : '');
+  const speakText = w.scene ? `${w.w}. ${w.scene}` : w.w;
   return `<div class="card ${isDone?'done':''}" data-word="${esc(w.w)}" data-deck="${esc(w.deck||'')}" style="position:relative;">
     <div style="display:flex;align-items:flex-start;gap:12px;cursor:pointer" data-act="learnWord">
       <div style="width:26px;height:26px;border-radius:50%;background:${isDone?'var(--brand)':'#f0f1f8'};color:${isDone?'#fff':'#8a90a6'};display:grid;place-items:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px;">${isDone?'✓':i+1}</div>
-      <div style="flex:1;min-width:0;padding-right:48px;">
-        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding-right:44px;">
           <span class="word-big" style="${isDone?'text-decoration:line-through;color:#aab0c0;':''}">${esc(w.w)}</span>
           ${w.pos?`<span style="font-size:11px;color:var(--brand);background:#eef0ff;padding:2px 7px;border-radius:6px;font-weight:700;">${esc(w.pos)}</span>`:''}
           ${isDoneToday && !isDone?'<span style="font-size:10.5px;color:#047857;background:#ecfdf5;padding:1px 6px;border-radius:5px;font-weight:650;">今日</span>':''}
@@ -1618,9 +1634,14 @@ function wordCard(w, i, isDone, isDoneToday){
       <div style="font-size:13.5px;color:#2b3244;line-height:1.55;">${esc(w.scene)}</div>
       <div style="font-size:12.5px;color:var(--sub);margin-top:5px;">${esc(w.sceneCn||'')}</div>
     </div>`:''}
-    <button aria-label="朗读" style="position:absolute;top:14px;right:14px;border:0;background:#f3f4fa;width:38px;height:38px;border-radius:11px;font-size:17px;cursor:pointer;" data-act="speak" data-text="${esc(speakText)}" data-lang="en-US">🔊</button>
+    <button style="position:absolute;top:14px;right:14px;border:0;background:#f3f4fa;width:38px;height:38px;border-radius:12px;font-size:16px;cursor:pointer;"
+      data-act="speak"
+      data-text="${esc(speakText)}"
+      data-lang="en-US"
+      title="朗读单词和例句">🔊</button>
   </div>`;
 }
+
 function valveSection(){
   const q = state.searchQuery || ''; const cat = state.valveCat || '全部';
   const knowDoneEver = new Set(LearnStore.getAllKnowDoneEver());
@@ -1857,7 +1878,7 @@ function moneyRecordPane(){
   const todayTx = transactions.filter(t => t.date === today);
   const iconOf = c => c === '餐饮' ? '☕' : c === '交通' ? '🚕' : c === '购物' ? '🛒' : c === '工资' ? '💼' : '💳';
   const txHtml = arr => arr.length ? arr.map(t => `<div class="tx" data-tx-id="${t.id}"><div class="ic">${iconOf(t.category)}</div><div class="body"><div class="h-t-name">${esc(t.note || t.category)}</div><div class="muted" style="font-size:11.5px;color:var(--sub)">${t.time} · ${t.type === 'income' ? '收入' : '支出'} · ${t.category}</div></div><div class="amt ${t.type === 'income' ? 'inc' : ''}">${t.type === 'income' ? '+' : '-'}${t.amount.toFixed(2)}</div><button class="del-tx" data-del-tx="${t.id}">✕</button></div>`).join('') : '<p class="tip" style="color:#8A90A2">暂无记录</p>';
-  return `<div class="card"><div class="mic-wrap"><button class="mic" id="micBtn">🎙️</button><p class="mic-hint" id="micHint">点击麦克风开始语音输入（最长 10 秒）</p><button class="btn-ghost-h" data-act="toggleManual" style="margin-top:12px;max-width:220px">⌨️ 手动输入文字</button><div class="text-input-area" id="textInputArea"><input type="text" id="manualTxInput" placeholder="如：午餐 35 元 / 发工资 8000"><button class="btn-ghost-h" data-act="parseManual" style="padding:11px">解析这笔</button></div></div><div id="txEditArea"></div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">今日明细 <span class="muted" style="color:var(--sub);font-size:11.5px">点条目可编辑</span></div>${txHtml(todayTx)}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">最近记录 <span class="muted" style="color:var(--sub);font-size:11.5px">共 ${transactions.length} 笔</span></div>${txHtml(transactions.slice(0, 10))}</div>`;
+  return `<div class="card"><div class="mic-wrap"><button class="mic" id="micBtn">🎙️</button><p class="mic-hint" id="micHint">点击麦克风开始语音输入（10 秒）</p><button class="btn-ghost-h" data-act="toggleManual" style="margin-top:12px;max-width:220px">⌨️ 手动输入文字</button><div class="text-input-area" id="textInputArea"><input type="text" id="manualTxInput" placeholder="如：午餐 35 元 / 发工资 8000"><button class="btn-ghost-h" data-act="parseManual" style="padding:11px">解析这笔</button></div></div><div id="txEditArea"></div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">今日明细 <span class="muted" style="color:var(--sub);font-size:11.5px">点条目可编辑</span></div>${txHtml(todayTx)}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">最近记录 <span class="muted" style="color:var(--sub);font-size:11.5px">共 ${transactions.length} 笔</span></div>${txHtml(transactions.slice(0, 10))}</div>`;
 }
 function moneyBookPane(){
   const today = todayStr();
@@ -2037,6 +2058,7 @@ function careSuppLibPane(){
   }).join('') || '<p class="tip" style="color:#8A90A2;padding:8px 0">补剂库为空</p>';
   return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">补剂库 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${suppLib.length} 项</span></div><p style="font-size:11.5px;color:var(--sub);margin:0 0 10px;line-height:1.6;">这里是你所有的补剂清单，每天会自动把它们复制到「补剂」页作为今日待办。</p>${list}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">添加补剂到库</div><div class="dim-row"><span class="lb">名称</span><input type="text" id="suppLibName" placeholder="如 复合维生素B" style="width:160px;text-align:left"></div><div class="dim-row"><span class="lb">剂量</span><input type="text" id="suppLibDose" placeholder="如 1 粒" style="width:160px;text-align:left"></div><div class="dim-row"><span class="lb">服用时间</span><input type="text" id="suppLibTime" placeholder="如 早餐后" style="width:160px;text-align:left"></div><button class="btn-primary" data-act="addSuppLib" style="margin-top:12px;background:linear-gradient(135deg,var(--pink),var(--pink2))">＋ 添加到补剂库</button></div>`;
 }
+
 function openProductSheet(stepId){
   state.pickingSkinStep = stepId;
   const existing = skinProducts[stepId];
@@ -2112,6 +2134,7 @@ async function recommendSection(){
 function meView(){
   const stats = LearnStore.stats();
   const streak = LearnStore.getStreak();
+  const ds = window.__dataStatus || {};
   const hSessions = getSportSessions();
   return `<div class="hero"><div class="hero-k">我的</div><h1>数据管理</h1>${streak.count>0?`<div style="margin-top:12px"><span class="streak-badge" style="font-size:13px;padding:5px 12px;">🔥 已连续学习 ${streak.count} 天</span></div>`:''}</div>
   <div class="card"><div class="sec-title" style="margin:0 0 12px;">📊 累计数据</div>
@@ -2274,19 +2297,35 @@ async function sendAIMessage(){
   state.aiLoading = false; openAIAssistant();
 }
 
-/* ★ 补丁 7：导出走原生桥 */
+// ★ 导出 JSON：优先原生保存
 function doExport(){
   const data = {
     app:'daily-health', version:2, exportedAt:new Date().toISOString(),
-    learn: { learned: LearnStore.getLearned(), wordDeckMap: LS.get('word-deck-map', {}), schedule: { english: LearnStore.getSchedule('english'), work: LearnStore.getSchedule('work') }, wrongBook: LearnStore.getWrongBook(), streak: LearnStore.getStreak(), aiHistory: LearnStore.getAIHistory() },
-    health: { body, suppLib, profile, skinState, transactions, clothes, skinProducts, planStart: localDateStr(PLAN_START), overrides: getOverrides(), manualTodos: getManualTodos(), todoStatus: getTodoStatusMap(), sportSessions: getSportSessions(), bodyHistory: getBodyHistory(), setsDone: state.setsDone, dailyChecks: getChecks() }
+    learn: {
+      learned: LearnStore.getLearned(),
+      wordDeckMap: LS.get('word-deck-map', {}),
+      schedule: { english: LearnStore.getSchedule('english'), work: LearnStore.getSchedule('work') },
+      wrongBook: LearnStore.getWrongBook(),
+      streak: LearnStore.getStreak(),
+      aiHistory: LearnStore.getAIHistory()
+    },
+    health: {
+      body, suppLib, profile, skinState, transactions, clothes, skinProducts,
+      planStart: localDateStr(PLAN_START),
+      overrides: getOverrides(),
+      manualTodos: getManualTodos(),
+      todoStatus: getTodoStatusMap(),
+      sportSessions: getSportSessions(),
+      bodyHistory: getBodyHistory(),
+      dailyChecks: getChecks()
+    }
   };
   const json = JSON.stringify(data, null, 2);
   const filename = `日常健康备份_${todayStr()}.json`;
-  if (window.AndroidFile && AndroidFile.saveFile){
-    const ok = AndroidFile.saveFile(json, filename, 'application/json');
-    toast(ok ? '已保存到 Downloads/DailyHealth' : '保存失败');
-    return;
+
+  if (window.AndroidFile && typeof AndroidFile.saveFile === 'function'){
+    try { AndroidFile.saveFile(json, filename, 'application/json'); return; }
+    catch(e){ console.error(e); }
   }
   try {
     const blob = new Blob([json], { type:'application/json;charset=utf-8' });
@@ -2298,15 +2337,7 @@ function doExport(){
   } catch(err){ toast('导出失败：' + err.message); }
 }
 
-/* ★ 补丁 7+8：导入走原生桥 + 兼容旧格式 */
 function doImport(){
-  if (window.AndroidFile && AndroidFile.pickFile){
-    window.__onFilePicked = (text) => {
-      try { doImportConfirm(text); } catch(e){ toast('读取失败：' + e.message); }
-    };
-    AndroidFile.pickFile('json');
-    return;
-  }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json,application/json,text/plain,*/*';
@@ -2326,92 +2357,52 @@ function doImport(){
   input.click();
   setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
 }
+
+// ★ 导入：兼容旧版 {data:{app_body:'...'}} 格式
 function doImportConfirm(text){
   try {
-    const d = JSON.parse(text);
+    const raw = JSON.parse(text);
+    let learn = null, health = null, rawTxList = null;
 
-    /* ─── 旧版格式：{ app:"health-life", data:{ app_*: "json字符串" } } ─── */
-    if (d && d.app === 'health-life' && d.data && typeof d.data === 'object'){
-      const src = d.data;
-      const P = (v) => {
-        if (v === undefined || v === null) return null;
-        if (typeof v === 'string'){
-          try { return JSON.parse(v); } catch(e){ return v; }
-        }
-        return v;
+    if (raw.learn || raw.health){
+      learn = raw.learn || null;
+      health = raw.health || null;
+    }
+    else if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)){
+      const src = raw.data;
+      const p = v => {
+        if (typeof v !== 'string') return v;
+        try { return JSON.parse(v); } catch(e){ return v; }
       };
-      // 身体尺寸
-      const b = P(src.app_body);
-      if (b && typeof b === 'object'){ Object.assign(body, b); HealthStore.save('body', body); }
-      // 组数完成
-      const sd = P(src.app_setsDone);
-      if (sd && typeof sd === 'object'){ state.setsDone = sd; HealthStore.save('setsDone', sd); }
-      // 补剂库
-      const supp = P(src.app_supplements);
-      if (Array.isArray(supp) && supp.length){ suppLib = supp; saveSuppLib(); }
-      // 肤质档案
-      const prof = P(src.app_profile);
-      if (prof && typeof prof === 'object'){ Object.assign(profile, prof); HealthStore.save('profile', profile); }
-      // 皮肤状态
-      const skinSt = P(src.app_skinState);
-      if (typeof skinSt === 'string' && skinSt){ skinState = skinSt; HealthStore.save('skinState', skinState); }
-      // 交易（合并 + 去重）
-      const txs = P(src.transactions);
-      if (Array.isArray(txs)){
-        const existing = new Set(transactions.map(t => t.id));
-        const add = txs.filter(t => t && !existing.has(t.id));
-        transactions = add.concat(transactions);
-        state.transactions = transactions;
-        LS.set('app_h_transactions', transactions);
-      }
-      // 运动 session
-      const sess = P(src.sportSessions);
-      if (sess && typeof sess === 'object'){
-        const cur = getSportSessions();
-        Object.keys(sess).forEach(k => { cur[k] = sess[k]; });
-        saveSportSessions(cur);
-      }
-      // 身体历史
-      const bh = P(src.app_bodyHistory);
-      if (Array.isArray(bh) && bh.length){
-        const cur = getBodyHistory();
-        const map = new Map(cur.map(x => [x.date, x]));
-        bh.forEach(x => map.set(x.date, x));
-        saveBodyHistory([...map.values()].sort((a,b) => a.date.localeCompare(b.date)));
-      }
-      // 计划开始日
-      if (src.planStartDate && /^\d{4}-\d{2}-\d{2}$/.test(src.planStartDate)){
-        setPlanStart(new Date(src.planStartDate + 'T00:00:00'));
-      }
-      // 计划覆盖（休息日）
-      const ov = P(src.planOverrides);
-      if (ov && typeof ov === 'object') LS.set('app_h_planOverrides', ov);
-      // 待办勾选状态
-      const ts = P(src.todoStatus);
-      if (ts && typeof ts === 'object') saveTodoStatusMap(ts);
-      // 手动待办
-      const mt = P(src.calendarManual);
-      if (mt && typeof mt === 'object') saveManualTodos(mt);
-      // 每日打卡
-      const dc = P(src.dailyChecks);
-      if (dc && typeof dc === 'object') LS.set('app_h_dailyChecks', dc);
-      // 衣服
-      const cl = P(src.clothes);
-      if (Array.isArray(cl) && cl.length){ clothes = cl; LS.set('app_h_clothes', clothes); }
-      // 护肤产品
-      const sp = P(src.skinProducts);
-      if (sp && typeof sp === 'object' && Object.keys(sp).length){ skinProducts = sp; saveSkinProducts(); }
-
-      toast('✓ 旧版备份已导入');
-      buildCalendarFromPlans();
-      setTimeout(() => location.reload(), 900);
-      return;
+      health = {
+        body: p(src.app_body || src.body),
+        suppLib: p(src.app_supplements || src.supplements || src.suppLib),
+        profile: p(src.app_profile || src.profile),
+        skinState: p(src.app_skinState || src.skinState),
+        transactions: p(src.transactions),
+        bodyHistory: p(src.app_bodyHistory || src.bodyHistory),
+        planStart: src.planStartDate || src.planStart,
+        overrides: p(src.planOverrides || src.overrides),
+        todoStatus: p(src.todoStatus),
+        manualTodos: p(src.calendarManual || src.manualTodos),
+        sportSessions: p(src.sportSessions),
+        clothes: p(src.clothes),
+        skinProducts: p(src.skinProducts),
+        dailyChecks: p(src.dailyChecks)
+      };
+      learn = {};
+    }
+    else if (Array.isArray(raw)){
+      rawTxList = raw;
+    }
+    else {
+      toast('未识别的文件格式'); return;
     }
 
-    /* ─── 新格式（learn + health）─── */
     let imported = 0;
-    if (Array.isArray(d)){
-      const list = d.filter(x => x && (x.amount !== undefined || x.date)).map(x => ({
+
+    if (rawTxList){
+      const list = rawTxList.filter(x => x && (x.amount !== undefined || x.date)).map(x => ({
         id: x.id || (Date.now() + Math.floor(Math.random()*1000)),
         date: x.date || todayStr(),
         time: x.time || '12:00',
@@ -2423,47 +2414,71 @@ function doImportConfirm(text){
       transactions = [...list, ...transactions];
       state.transactions = transactions;
       LS.set('app_h_transactions', transactions);
-      toast(`✓ 导入 ${list.length} 条账本`);
-      setTimeout(() => location.reload(), 700);
-      return;
+      imported++;
     }
-    if (d.learn){
-      if (d.learn.learned) LS.set('learned:'+DAY, d.learn.learned);
-      if (d.learn.wordDeckMap) LS.set('word-deck-map', d.learn.wordDeckMap);
-      if (d.learn.schedule){
-        if (d.learn.schedule.english) LearnStore.setSchedule('english', d.learn.schedule.english);
-        if (d.learn.schedule.work) LearnStore.setSchedule('work', d.learn.schedule.work);
+
+    if (health){
+      if (health.body){ Object.assign(body, health.body); HealthStore.save('body', body); }
+      if (health.suppLib){ suppLib = health.suppLib; saveSuppLib(); }
+      if (health.profile){ Object.assign(profile, health.profile); HealthStore.save('profile', profile); }
+      if (health.skinState){ skinState = health.skinState; HealthStore.save('skinState', skinState); }
+
+      if (Array.isArray(health.transactions) && health.transactions.length){
+        const seen = new Set(transactions.map(t => `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note||''}`));
+        health.transactions.forEach(t => {
+          const sig = `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note||''}`;
+          if (!seen.has(sig)){
+            transactions.push({
+              id: t.id || (Date.now() + Math.floor(Math.random()*1000)),
+              date: t.date, time: t.time || '12:00',
+              amount: parseFloat(t.amount) || 0,
+              type: (t.type === '收入' || t.type === 'income') ? 'income' : 'expense',
+              category: t.category || '其他',
+              note: t.note || ''
+            });
+            seen.add(sig);
+          }
+        });
+        transactions.sort((a,b) => (b.date + b.time).localeCompare(a.date + a.time));
+        state.transactions = transactions;
+        LS.set('app_h_transactions', transactions);
       }
-      if (d.learn.wrongBook) LS.set('wrong-book', d.learn.wrongBook);
-      if (d.learn.streak) LS.set('streak', d.learn.streak);
-      if (d.learn.aiHistory) LS.set('ai-history', d.learn.aiHistory);
+
+      if (health.bodyHistory) saveBodyHistory(health.bodyHistory);
+      if (health.planStart){
+        LS.set('app_h_planStartDate', health.planStart);
+        PLAN_START = new Date(health.planStart + 'T00:00:00');
+      }
+      if (health.overrides) LS.set('app_h_planOverrides', health.overrides);
+      if (health.todoStatus) saveTodoStatusMap(health.todoStatus);
+      if (health.manualTodos) saveManualTodos(health.manualTodos);
+      if (health.sportSessions) saveSportSessions(health.sportSessions);
+      if (Array.isArray(health.clothes)){ clothes = health.clothes; LS.set('app_h_clothes', clothes); }
+      if (health.skinProducts){ skinProducts = health.skinProducts; saveSkinProducts(); }
+      if (health.dailyChecks) saveChecks(health.dailyChecks);
       imported++;
     }
-    const h = d.health || d;
-    if (h){
-      if (h.body) { Object.assign(body, h.body); HealthStore.save('body', body); }
-      if (h.suppLib) { suppLib = h.suppLib; saveSuppLib(); }
-      if (h.supplements && !h.suppLib) { suppLib = h.supplements; saveSuppLib(); }
-      if (h.profile){ Object.assign(profile, h.profile); HealthStore.save('profile', profile); }
-      if (h.skinState){ skinState = h.skinState; HealthStore.save('skinState', skinState); }
-      if (Array.isArray(h.transactions)){ transactions = h.transactions.concat(transactions); state.transactions = transactions; LS.set('app_h_transactions', transactions); }
-      if (Array.isArray(h.clothes)){ clothes = h.clothes; LS.set('app_h_clothes', clothes); }
-      if (h.skinProducts){ skinProducts = h.skinProducts; saveSkinProducts(); }
-      if (h.planStart) setPlanStart(new Date(h.planStart + 'T00:00:00'));
-      if (h.overrides) LS.set('app_h_planOverrides', h.overrides);
-      if (h.manualTodos) saveManualTodos(h.manualTodos);
-      if (h.todoStatus) saveTodoStatusMap(h.todoStatus);
-      if (h.sportSessions) saveSportSessions(h.sportSessions);
-      if (h.bodyHistory) saveBodyHistory(h.bodyHistory);
-      if (h.setsDone){ state.setsDone = h.setsDone; HealthStore.save('setsDone', h.setsDone); }
-      if (h.dailyChecks) LS.set('app_h_dailyChecks', h.dailyChecks);
+
+    if (learn){
+      if (learn.learned) LS.set('learned:'+DAY, learn.learned);
+      if (learn.wordDeckMap) LS.set('word-deck-map', learn.wordDeckMap);
+      if (learn.schedule){
+        if (learn.schedule.english) LearnStore.setSchedule('english', learn.schedule.english);
+        if (learn.schedule.work) LearnStore.setSchedule('work', learn.schedule.work);
+      }
+      if (learn.wrongBook) LS.set('wrong-book', learn.wrongBook);
+      if (learn.streak) LS.set('streak', learn.streak);
+      if (learn.aiHistory) LS.set('ai-history', learn.aiHistory);
       imported++;
     }
-    if (!imported) { toast('未识别的文件格式'); return; }
-    toast('导入成功');
-    closeSheet();
-    setTimeout(() => location.reload(), 700);
-  } catch(err){ toast('格式不对：'+err.message); }
+
+    if (!imported){ toast('未识别的文件格式'); return; }
+    toast('✓ 导入成功');
+    setTimeout(() => location.reload(), 800);
+  } catch(err){
+    console.error(err);
+    toast('导入失败：' + (err.message || err));
+  }
 }
 function clearAllData(){
   if (!confirm('确定清空？所有学习、健康数据将丢失。')) return;
@@ -2473,9 +2488,9 @@ function clearAllData(){
   setTimeout(() => location.reload(), 500);
 }
 
-/* ================================================================
-   事件委托
-   ================================================================ */
+// ================================================================
+// 事件委托
+// ================================================================
 let searchTimer = null;
 view.addEventListener('input', e => {
   const el = e.target; if (!el) return;
@@ -2896,67 +2911,66 @@ sheet.addEventListener('click', async e => {
   if (act === 'removeProduct'){ const stepId = state.pickingSkinStep; if (stepId){ delete skinProducts[stepId]; saveSkinProducts(); } closeSheet(); render({ keepScroll: true }); return; }
 });
 
-/* ================================================================
-   语音识别：走原生 AndroidVoice 桥
-   ================================================================ */
-let _voiceAutoStopTimer = null;
-const VOICE_MAX_MS = 10000;
+// ================================================================
+// ★ 语音记账：用原生 AndroidTTS.startRecognize，10 秒自动停，再点停止
+// ================================================================
+let _voiceTimerHandle = null;
+let _voiceActive = false;
 
-function startVoiceRecognition(){
-  if (!window.AndroidVoice){
-    toast('语音模块不可用（原生桥未注入）');
+function startVoiceRecord(){
+  if (!window.AndroidTTS || typeof AndroidTTS.startRecognize !== 'function'){
+    toast('当前环境不支持语音识别');
     return;
   }
-  if (window.AndroidVoice.isListening && window.AndroidVoice.isListening()){
-    stopVoiceRecognition(); return;
-  }
-  window.onVoiceStart = () => {
-    const mic = document.getElementById('micBtn'); if (mic) mic.classList.add('listening');
-    const hint = document.getElementById('micHint'); if (hint) hint.textContent = '正在聆听…（最长 10 秒 / 再点一下停止）';
-  };
-  window.onVoiceStop = () => {
-    const mic = document.getElementById('micBtn'); if (mic) mic.classList.remove('listening');
-    const hint = document.getElementById('micHint'); if (hint) hint.textContent = '点击麦克风开始语音输入（最长 10 秒）';
-    if (_voiceAutoStopTimer){ clearTimeout(_voiceAutoStopTimer); _voiceAutoStopTimer = null; }
-  };
-  window.onVoicePartial = (text) => {
-    const hint = document.getElementById('micHint'); if (hint) hint.textContent = '…' + text;
-  };
-  window.onVoiceResult = (text) => {
-    window.onVoiceStop();
-    if (text && text.trim()){
-      state.pendingTx = parseTransactionText(text.trim());
-      renderTxEditor();
-      toast('已识别：' + text.slice(0, 20));
-    } else {
-      toast('未识别到内容');
-    }
-  };
-  window.onVoiceError = (msg) => {
-    window.onVoiceStop();
-    toast('识别失败：' + msg);
-  };
-  try {
-    window.AndroidVoice.start();
-    _voiceAutoStopTimer = setTimeout(stopVoiceRecognition, VOICE_MAX_MS);
-  } catch(e){ toast('启动失败：' + e.message); }
+  _voiceActive = true;
+  const mic = document.getElementById('micBtn');
+  if (mic) mic.classList.add('listening');
+  const hint = document.getElementById('micHint');
+  if (hint) hint.textContent = '正在聆听… 10 秒（再点麦克风可提前结束）';
+
+  let left = 10;
+  if (_voiceTimerHandle) clearInterval(_voiceTimerHandle);
+  _voiceTimerHandle = setInterval(() => {
+    left--;
+    const h = document.getElementById('micHint');
+    if (h) h.textContent = `正在聆听… 还剩 ${left} 秒（再点麦克风可提前结束）`;
+    if (left <= 0) stopVoiceRecord();
+  }, 1000);
+
+  try { AndroidTTS.startRecognize(10); }
+  catch(e){ toast('启动失败：' + e.message); stopVoiceRecord(); }
 }
-function stopVoiceRecognition(){
-  if (_voiceAutoStopTimer){ clearTimeout(_voiceAutoStopTimer); _voiceAutoStopTimer = null; }
-  try { if (window.AndroidVoice) window.AndroidVoice.stop(); } catch(e){}
-  if (window.onVoiceStop) window.onVoiceStop();
+
+function stopVoiceRecord(){
+  _voiceActive = false;
+  if (_voiceTimerHandle){ clearInterval(_voiceTimerHandle); _voiceTimerHandle = null; }
+  const mic = document.getElementById('micBtn');
+  if (mic) mic.classList.remove('listening');
+  const hint = document.getElementById('micHint');
+  if (hint) hint.textContent = '点击麦克风开始语音输入（10 秒）';
+  try { if (window.AndroidTTS && AndroidTTS.stopRecognize) AndroidTTS.stopRecognize(); } catch(e){}
 }
+
+window.onVoiceResult = function(text){
+  stopVoiceRecord();
+  if (!text || !String(text).trim()){ toast('没有识别到内容'); return; }
+  state.pendingTx = parseTransactionText(String(text).trim());
+  renderTxEditor();
+  toast('已识别：' + String(text).trim().slice(0, 20));
+};
+window.onVoiceError = function(err){
+  stopVoiceRecord();
+  toast('语音识别失败：' + (err || '未知错误'));
+};
+
 view.addEventListener('click', e => {
   const mic = e.target.closest('#micBtn');
   if (!mic) return;
-  if (window.AndroidVoice && AndroidVoice.isListening && AndroidVoice.isListening()) {
-    stopVoiceRecognition();
-  } else {
-    startVoiceRecognition();
-  }
+  if (_voiceActive) stopVoiceRecord();
+  else startVoiceRecord();
 });
 
-/* ---------- 底部 tab / FAB / 搜索 ---------- */
+// ---------- 底部 tab / FAB / 搜索 ----------
 tabbar.addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (!t) return;
   stopSpeak(); state.tab = t.dataset.tab; render();
@@ -2989,73 +3003,48 @@ window.addEventListener('beforeunload', () => {
   HealthStore.save('setsDone', state.setsDone);
 });
 
-/* ================================================================
-   久坐提醒：开始/结束都响 + 语音 + 通知
-   ================================================================ */
+// ================================================================
+// ★ 久坐提醒：200 秒计时，开始和结束都有声音、震动、通知
+// ================================================================
 const WALK_LAST_KEY = 'app_h_lastWalkReminder';
 let _walkTimerHandle = null, _walkCountdownHandle = null, _walkEndTs = 0;
 
-function isInWalkWindow(){
-  const now = new Date();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  return (mins >= 8*60+30 && mins <= 11*60+30) || (mins >= 13*60+30 && mins <= 17*60);
-}
-function vibratePattern(p){
-  try {
-    if (window.AndroidNative && AndroidNative.vibrate){
-      if (Array.isArray(p)) p.forEach(ms => AndroidNative.vibrate(ms));
-      else AndroidNative.vibrate(p);
-    } else if (navigator.vibrate) navigator.vibrate(p);
-  } catch(e){}
-}
+function isInWalkWindow(){ const now = new Date(); const mins = now.getHours() * 60 + now.getMinutes(); return (mins >= 8*60 + 30 && mins <= 11*60 + 30) || (mins >= 13*60 + 30 && mins <= 17*60); }
+function vibratePattern(p){ try { if (navigator.vibrate) navigator.vibrate(p); } catch(e){} }
 function speakText(text){
-  if (!text) return;
+  const t = String(text || ''); if (!t) return;
   try {
-    if (window.AndroidNative && AndroidNative.speak){ AndroidNative.speak(text, 'zh-CN'); return; }
-    if (window.AndroidTTS && AndroidTTS.speak){ AndroidTTS.speak(text, 'zh-CN'); return; }
-    if ('speechSynthesis' in window){
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text); u.lang='zh-CN'; u.rate=1.0;
-      speechSynthesis.speak(u);
-    }
+    if (window.AndroidTTS && typeof AndroidTTS.speak === 'function'){ AndroidTTS.speak(t, 'zh-CN'); return; }
+    if ('speechSynthesis' in window){ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'zh-CN'; u.rate = 1.0; speechSynthesis.speak(u); }
   } catch(e){}
 }
 function requestNotifPermission(){
   try {
-    if (window.AndroidNative && AndroidNative.requestNotificationPermission){
-      AndroidNative.requestNotificationPermission();
-    }
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default'){
-      Notification.requestPermission();
-    }
+    if (window.AndroidNotify && AndroidNotify.requestPermission) AndroidNotify.requestPermission();
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
   } catch(e){}
 }
-function showWalkNotification(){
+function sendNotification(title, body){
   try {
-    if (window.AndroidNative && AndroidNative.notify){
-      AndroidNative.notify('该站起来走动了', '起身 → 走动 2–3 分钟 → 下巴轻收 5 次');
-      return;
-    }
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    const n = new Notification('该站起来走动了', {
-      body:'起身 → 走动 2–3 分钟 → 下巴轻收 5 次',
-      tag:'walk-reminder-' + Math.floor(Date.now()/30000)
-    });
-    setTimeout(() => { try { n.close(); } catch(e){} }, 30000);
+    if (window.AndroidNotify && AndroidNotify.notify){ AndroidNotify.notify(title, body); return; }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body });
   } catch(e){}
 }
+function showWalkNotification(){ sendNotification('该站起来走动了', '起身活动 2–3 分钟，下巴轻收 5 次'); }
+
 function finishWalkTimer(){
   const el = document.getElementById('centerTimer');
   if (el) el.classList.remove('show');
   if (_walkCountdownHandle){ clearInterval(_walkCountdownHandle); _walkCountdownHandle = null; }
   _walkEndTs = 0;
-  // ★ 结束：三声 + 语音
-  try { playBeep(); } catch(e){}
-  setTimeout(() => { try { playBeep(); } catch(e){} }, 380);
-  setTimeout(() => { try { playBeep(); } catch(e){} }, 760);
+  // ★ 结束声音
+  playBeep();
+  setTimeout(() => playBeep(), 420);
   vibratePattern([300, 150, 300]);
-  setTimeout(() => speakText('时间到，回到座位继续吧'), 900);
+  setTimeout(() => speakText('时间到，回到座位继续吧'), 600);
+  sendNotification('活动结束', '可以回到座位继续工作了');
 }
+
 function startWalkTimer(sec){
   const el = document.getElementById('centerTimer');
   const num = document.getElementById('centerTimerNum');
@@ -3070,11 +3059,13 @@ function startWalkTimer(sec){
     num.textContent = left;
     if (left <= 0) finishWalkTimer();
   }, 250);
-  // ★ 开始：一声 + 语音
-  try { playBeep(); } catch(e){}
-  setTimeout(() => speakText('开始动一动'), 200);
-  vibratePattern([150]);
+
+  // ★ 开始声音
+  speakText('该站起来走动了，活动两到三分钟');
+  vibratePattern([150, 100, 150]);
+  sendNotification('该站起来走动了', '起身活动 2–3 分钟，下巴轻收 5 次');
 }
+
 function checkWalkReminder(force){
   if (!force && !isInWalkWindow()) return;
   const last = parseInt(LS.get(WALK_LAST_KEY, '0') || '0', 10);
@@ -3089,12 +3080,10 @@ function initWalkReminder(){
   setTimeout(() => checkWalkReminder(false), 3000);
   if (_walkTimerHandle) clearInterval(_walkTimerHandle);
   _walkTimerHandle = setInterval(() => checkWalkReminder(false), 60 * 1000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') checkWalkReminder(false);
-  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkWalkReminder(false); });
 }
 
-/* ---------- 初始化 ---------- */
+// ---------- 初始化 ----------
 (function init(){
   loadDataFromGlobals();
   buildCalendarFromPlans();
