@@ -52,7 +52,6 @@ public class MainActivity extends AppCompatActivity {
         s.setJavaScriptCanOpenWindowsAutomatically(true);
 
         jsBridge = new JsBridge(this, webView);
-        // 同一桥对象注册多个名字，方便 JS 端调用
         webView.addJavascriptInterface(jsBridge, "AndroidBridge");
         webView.addJavascriptInterface(jsBridge, "AndroidTTS");
         webView.addJavascriptInterface(jsBridge, "AndroidFile");
@@ -142,6 +141,15 @@ public class MainActivity extends AppCompatActivity {
             }
             return;
         }
+
+        // ★ 语音识别结果转发
+        if (req == VoiceRecorder.REQ_VOICE) {
+            if (jsBridge != null && jsBridge.getVoiceRecorder() != null) {
+                jsBridge.getVoiceRecorder().handleActivityResult(req, res, data);
+            }
+            return;
+        }
+
         super.onActivityResult(req, res, data);
     }
 
