@@ -1,5 +1,6 @@
 package com.daily.healthlife;
 
+import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ContentValues;
@@ -35,18 +36,12 @@ public class JsBridge {
         this.recorder = new VoiceRecorder(a);
     }
 
-    // ================= TTS =================
     @JavascriptInterface
-    public void speak(String text, String lang) {
-        tts.speak(text, lang);
-    }
+    public void speak(String text, String lang) { tts.speak(text, lang); }
 
     @JavascriptInterface
-    public void stopSpeak() {
-        tts.stop();
-    }
+    public void stopSpeak() { tts.stop(); }
 
-    // ============ 语音识别 ============
     @JavascriptInterface
     public void startRecognize(int durationSec) {
         act.runOnUiThread(() -> recorder.start(durationSec, new VoiceRecorder.Callback() {
@@ -63,11 +58,8 @@ public class JsBridge {
     }
 
     @JavascriptInterface
-    public void stopRecognize() {
-        recorder.stop();
-    }
+    public void stopRecognize() { recorder.stop(); }
 
-    /** ★ MainActivity 需要用它来转发 onActivityResult */
     public VoiceRecorder getVoiceRecorder() { return recorder; }
 
     private static String jsString(String s) {
@@ -85,11 +77,13 @@ public class JsBridge {
         return sb.append("'").toString();
     }
 
-    // ============= 文件保存 =============
+    // ★ 改动：保存后弹窗显示完整路径
     @JavascriptInterface
     public void saveFile(String content, String filename, String mime) {
         try {
+            final String displayPath;
             if (Build.VERSION.SDK_INT >= 29) {
+                // Android 10+ 走 MediaStore，落到「下载/Download」目录
                 ContentValues cv = new ContentValues();
                 cv.put(MediaStore.Downloads.DISPLAY_NAME, filename);
                 cv.put(MediaStore.Downloads.MIME_TYPE,
@@ -101,7 +95,11 @@ public class JsBridge {
                 if (os == null) throw new Exception("无法打开输出流");
                 os.write(content.getBytes(StandardCharsets.UTF_8));
                 os.close();
+                // 常见设备上的真实路径
+                displayPath = Environment.getExternalStorageDirectory().getAbsolutePath()
+                        + "/Download/" + filename;
             } else {
+                // Android 9 及以下，直接写到公共下载目录
                 File dir = Environment.getExternalStoragePublicDirectory(
                         Environment.DIRECTORY_DOWNLOADS);
                 if (!dir.exists()) dir.mkdirs();
@@ -109,21 +107,38 @@ public class JsBridge {
                 FileOutputStream fos = new FileOutputStream(f);
                 fos.write(content.getBytes(StandardCharsets.UTF_8));
                 fos.close();
+                displayPath = f.getAbsolutePath();
             }
+
             final String fname = filename;
-            act.runOnUiThread(() -> Toast.makeText(act,
-                    "已保存到下载目录：" + fname, Toast.LENGTH_LONG).show());
+            final String fpath = displayPath;
+
+            act.runOnUiThread(() -> {
+                try {
+                    new AlertDialog.Builder(act)
+                        .setTitle("✓ 文件已保存")
+                        .setMessage("文件名：\n" + fname
+                                + "\n\n保存位置（打开手机「文件管理」→「下载」）：\n" + fpath)
+                        .setPositiveButton("知道了", null)
+                        .show();
+                } catch (Exception ex) {
+                    Toast.makeText(act, "已保存：" + fpath, Toast.LENGTH_LONG).show();
+                }
+            });
+
             act.runOnUiThread(() -> webView.evaluateJavascript(
-                    "window.onFileSaved && window.onFileSaved(true," + jsString(fname) + ")", null));
+                    "window.onFileSaved && window.onFileSaved(true," + jsString(fpath) + ")", null));
         } catch (Exception e) {
             Log.e("saveFile", "err", e);
             final String msg = e.getMessage();
-            act.runOnUiThread(() -> webView.evaluateJavascript(
-                    "window.onFileSaved && window.onFileSaved(false," + jsString(msg) + ")", null));
+            act.runOnUiThread(() -> {
+                Toast.makeText(act, "保存失败：" + msg, Toast.LENGTH_LONG).show();
+                webView.evaluateJavascript(
+                        "window.onFileSaved && window.onFileSaved(false," + jsString(msg) + ")", null);
+            });
         }
     }
 
-    // ============= 通知 =============
     @JavascriptInterface
     public void notify(String title, String body) {
         try {
@@ -146,15 +161,13 @@ public class JsBridge {
         }
     }
 
-    // ============= 震动 =============
     @JavascriptInterface
     public void vibrate(int ms) {
         try {
             Vibrator v = (Vibrator) act.getSystemService(Context.VIBRATOR_SERVICE);
             if (v == null) return;
             if (Build.VERSION.SDK_INT >= 26) {
-                v.vibrate(VibrationEffect.createOneShot(ms,
-                        VibrationEffect.DEFAULT_AMPLITUDE));
+                v.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE));
             } else {
                 v.vibrate(ms);
             }
