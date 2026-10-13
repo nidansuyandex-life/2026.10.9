@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -77,13 +78,12 @@ public class JsBridge {
         return sb.append("'").toString();
     }
 
-    // ★ 改动：保存后弹窗显示完整路径
+    // ★★★ 保存文件：写完后弹窗，只显示文件名 + 一个"打开下载文件夹"按钮 ★★★
     @JavascriptInterface
     public void saveFile(String content, String filename, String mime) {
         try {
-            final String displayPath;
             if (Build.VERSION.SDK_INT >= 29) {
-                // Android 10+ 走 MediaStore，落到「下载/Download」目录
+                // Android 10+ 走 MediaStore，系统自动管理路径
                 ContentValues cv = new ContentValues();
                 cv.put(MediaStore.Downloads.DISPLAY_NAME, filename);
                 cv.put(MediaStore.Downloads.MIME_TYPE,
@@ -95,11 +95,8 @@ public class JsBridge {
                 if (os == null) throw new Exception("无法打开输出流");
                 os.write(content.getBytes(StandardCharsets.UTF_8));
                 os.close();
-                // 常见设备上的真实路径
-                displayPath = Environment.getExternalStorageDirectory().getAbsolutePath()
-                        + "/Download/" + filename;
             } else {
-                // Android 9 及以下，直接写到公共下载目录
+                // Android 9 及以下，直接写公共下载目录
                 File dir = Environment.getExternalStoragePublicDirectory(
                         Environment.DIRECTORY_DOWNLOADS);
                 if (!dir.exists()) dir.mkdirs();
@@ -107,27 +104,29 @@ public class JsBridge {
                 FileOutputStream fos = new FileOutputStream(f);
                 fos.write(content.getBytes(StandardCharsets.UTF_8));
                 fos.close();
-                displayPath = f.getAbsolutePath();
             }
 
             final String fname = filename;
-            final String fpath = displayPath;
-
             act.runOnUiThread(() -> {
                 try {
                     new AlertDialog.Builder(act)
                         .setTitle("✓ 文件已保存")
                         .setMessage("文件名：\n" + fname
-                                + "\n\n保存位置（打开手机「文件管理」→「下载」）：\n" + fpath)
-                        .setPositiveButton("知道了", null)
+                                + "\n\n已保存到系统的「下载」文件夹。\n\n"
+                                + "查看方式：打开手机自带的「文件管理」APP，\n"
+                                + "切换到「分类」或「下载」视图即可找到。\n\n"
+                                + "（部分手机在「下载」APP里也能看到）")
+                        .setPositiveButton("打开下载文件夹",
+                            (d, w) -> openDownloadFolder())
+                        .setNegativeButton("知道了", null)
                         .show();
                 } catch (Exception ex) {
-                    Toast.makeText(act, "已保存：" + fpath, Toast.LENGTH_LONG).show();
+                    Toast.makeText(act, "已保存：" + fname, Toast.LENGTH_LONG).show();
                 }
             });
 
             act.runOnUiThread(() -> webView.evaluateJavascript(
-                    "window.onFileSaved && window.onFileSaved(true," + jsString(fpath) + ")", null));
+                    "window.onFileSaved && window.onFileSaved(true," + jsString(filename) + ")", null));
         } catch (Exception e) {
             Log.e("saveFile", "err", e);
             final String msg = e.getMessage();
@@ -137,6 +136,40 @@ public class JsBridge {
                         "window.onFileSaved && window.onFileSaved(false," + jsString(msg) + ")", null);
             });
         }
+    }
+
+    // ★ 打开系统的"下载"文件夹
+    @JavascriptInterface
+    public void openDownloadFolder() {
+        act.runOnUiThread(() -> {
+            // 方式 1：直接跳到系统"下载"应用
+            try {
+                Intent i = new Intent("android.intent.action.VIEW_DOWNLOADS");
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                act.startActivity(i);
+                return;
+            } catch (Exception ignored) {}
+            // 方式 2：用 SAF 打开 Download 目录
+            try {
+                Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setDataAndType(
+                    Uri.parse("content://com.android.externalstorage.documents/root/primary"),
+                    "vnd.android.document/directory");
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                act.startActivity(i);
+                return;
+            } catch (Exception ignored) {}
+            // 方式 3：打开系统文件管理器
+            try {
+                Intent i = new Intent(Intent.ACTION_MAIN);
+                i.addCategory(Intent.CATEGORY_APP_FILES);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                act.startActivity(i);
+                return;
+            } catch (Exception ignored) {}
+            Toast.makeText(act, "请手动打开「文件管理」APP → 分类 → 下载",
+                    Toast.LENGTH_LONG).show();
+        });
     }
 
     @JavascriptInterface
