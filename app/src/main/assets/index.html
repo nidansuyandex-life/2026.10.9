@@ -31,7 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .hero{padding:4px 4px 14px;}
 .hero-k{font-size:12px;color:var(--brand);font-weight:700;letter-spacing:.5px;margin-bottom:7px;}
 .hero h1{font-size:22px;margin:0;letter-spacing:-.5px;}
-.sec-title{font-size:13px;font-weight:700;color:#3b4256;margin:18px 4px 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.sec-title{font-size:13px;font-weight:700;color:#3b4256;margin:18px 4px 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .sec-title .muted{font-weight:500;font-size:11.5px;display:flex;align-items:center;gap:6px;}
 .muted{color:var(--sub);}
 .foot-note{text-align:center;font-size:11.5px;color:#aab0c0;padding:18px 0 4px;}
@@ -147,7 +147,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .progress .bar{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
 .row-between{display:flex;justify-content:space-between;align-items:center;}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
-.stat{background:#fff;border-radius:16px;padding:14px 8px;text-align:center;}
+.stat{background:#fff;border-radius:16px;padding:14px 8px;text-align:center;transition:.15s;}
+.stat:active{transform:scale(.97);}
 .stat .v{font-size:18px;font-weight:700;}
 .stat .k{font-size:11px;color:var(--sub);margin-top:5px;}
 .stat .d{font-size:10px;color:var(--sub);margin-top:3px;font-weight:600;}
@@ -343,10 +344,7 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid #e6e8f0
 <div class="phone">
   <header class="topbar">
     <div class="brand"><span class="dot"></span>日常 · 健康生活</div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <button class="top-icon-btn" id="globalSearchBtn">🔍</button>
-      <div class="today" id="todayLabel"></div>
-    </div>
+    <div class="today" id="todayLabel"></div>
   </header>
   <main id="view"></main>
   <button class="fab" id="fab">🤖</button>
@@ -522,7 +520,7 @@ const SEED = {
     {title:'江雪',text:'千山鸟飞绝，万径人踪灭。孤舟蓑笠翁，独钓寒江雪。',tips:'柳宗元。'},
     {title:'相思',text:'红豆生南国，春来发几枝。愿君多采撷，此物最相思。',tips:'王维。'}
   ],
-  RECOMMEND: {}   // ★ 改为空，走 API
+  RECOMMEND: {}
 };
 SEED.VALVE_ALL = [];
 const DATA_STATUS = { valve:0, words:0, decks:0, valveOk:false, wordsOk:false, thinking:0, scenes:0 };
@@ -1037,7 +1035,6 @@ function analyzeGarment(){
   return { rows, alerts, suggests, score, sizeType };
 }
 
-// ★ 中文数字 → 阿拉伯
 function cnToNumber(str){
   if (str == null) return NaN;
   const s = String(str).trim();
@@ -1066,7 +1063,6 @@ function cnToNumber(str){
 }
 function round2(n){ return Math.round(n * 100) / 100; }
 
-// ★ 金额解析
 function parseChineseAmount(text){
   if (text == null) return NaN;
   let s = String(text)
@@ -1276,7 +1272,6 @@ const JokeSource = {
   async fetchOne(){ const d = await tianapiFetch(`https://apis.tianapi.com/joke/index?key=${TIANAPI}&num=10`, 6000); if (d.code !== 200) throw new Error('code='+d.code); const list = extractList(d.result); if (!list.length) throw new Error('无内容'); const p = list[Math.floor(Math.random()*list.length)]; return { text: (p.content || p.text || '').trim(), source:'tianapi' }; }
 };
 
-// ★ 推荐 API 抓取
 async function fetchRecommendMovie(){
   const url = `https://api.themoviedb.org/3/trending/movie/day?api_key=${APP_DEFAULTS.tmdb.key}&language=zh-CN`;
   const d = await fetchJson(url, 8000);
@@ -1433,8 +1428,6 @@ function toggleSpeak(text, lang, btn){
   const p = player.play();
   if (p && p.catch) p.catch(() => { cleanup(); toast('朗读被拦截，请再点一次'); });
 }
-
-// ★ 单词 + 例句（间隔 3 秒）
 function speakWordWithScene(word, scene, btn){
   const wasPlaying = btn && btn.classList.contains('playing');
   stopSpeak();
@@ -1570,7 +1563,7 @@ function updateTopbar(){
   const done = tasks.filter(t => t.done).length;
   const el = document.getElementById('todayLabel');
   if (!el) return;
-  el.innerHTML = fmtDate() + (s.count>0?`<span class="streak-badge">🔥 ${s.count}天</span>`:'') + `<span class="streak-badge" style="background:linear-gradient(135deg,#eef0ff,#f6f0ff);color:#4f46e5;">☑ ${done}/${tasks.length}</span>`;
+  el.innerHTML = (s.count>0?`<span class="streak-badge">🔥 ${s.count}天</span>`:'') + `<span class="streak-badge" style="background:linear-gradient(135deg,#eef0ff,#f6f0ff);color:#4f46e5;">☑ ${done}/${tasks.length}</span>`;
 }
 const TABS = [
   { id:'home', icon:'🏠', label:'首页' },
@@ -1657,13 +1650,19 @@ function homeView(){
     </div>
   </div>
   <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-    <div class="stat"><div class="v" style="color:var(--brand)">${doneTasks}/${tasks.length}</div><div class="k">今日学习</div></div>
-    <div class="stat"><div class="v" style="color:var(--accent)">${todaySess ? (todaySess.endTs ? '✓' : (todaySess.pausedAt ? '⏸' : '⏳')) : '—'}</div><div class="k">训练状态</div></div>
-    <div class="stat"><div class="v" style="color:var(--hot)">¥${monthExp.toFixed(0)}</div><div class="k">本月支出</div></div>
+    <div class="stat" data-act="jumpFromHome" data-target="study" style="cursor:pointer;"><div class="v" style="color:var(--brand)">${doneTasks}/${tasks.length}</div><div class="k">今日学习</div></div>
+    <div class="stat" data-act="jumpFromHome" data-target="sport" style="cursor:pointer;"><div class="v" style="color:var(--accent)">${todaySess ? (todaySess.endTs ? '✓' : (todaySess.pausedAt ? '⏸' : '⏳')) : '—'}</div><div class="k">训练状态</div></div>
+    <div class="stat" data-act="jumpFromHome" data-target="money" style="cursor:pointer;"><div class="v" style="color:var(--hot)">¥${monthExp.toFixed(0)}</div><div class="k">本月支出</div></div>
   </div>
   <div class="sec-title" style="margin:14px 4px 8px;">今日身体状态 <span class="muted">点击切换</span></div>
   <div class="card" style="padding:10px;"><div class="body-state-grid">${bodyStateHtml}</div></div>
-  <div class="sec-title" style="margin:14px 4px 8px;">时间线 <span class="muted">点左侧圆圈打卡</span></div>
+  <div class="sec-title" style="margin:14px 4px 8px;">
+    <span>时间线</span>
+    <span style="display:flex;align-items:center;gap:8px;">
+      <button class="mini-add" data-act="newTodoToday" style="font-size:12px;padding:5px 12px;">＋ 新建待办</button>
+      <span class="muted" style="font-weight:500;font-size:11.5px;">点左侧圆圈打卡</span>
+    </span>
+  </div>
   <div class="home-tl-wrap">${tlHtml}</div>
   <div class="foot-note">数据保存在本设备 · 请定期备份</div>`;
 }
@@ -1738,8 +1737,6 @@ async function englishSection(){
   }
   return head;
 }
-
-// ★ wordCard：喇叭调用 speakWordWithScene，单词 + 例句间隔 3 秒
 function wordCard(w, i, isDone, isDoneToday){
   return `<div class="card ${isDone?'done':''}" data-word="${esc(w.w)}" data-deck="${esc(w.deck||'')}" style="position:relative;">
     <div style="display:flex;align-items:flex-start;gap:12px;cursor:pointer" data-act="learnWord">
@@ -1765,7 +1762,6 @@ function wordCard(w, i, isDone, isDoneToday){
       title="朗读单词和例句（间隔 3 秒）">🔊</button>
   </div>`;
 }
-
 function valveSection(){
   const q = state.searchQuery || ''; const cat = state.valveCat || '全部';
   const knowDoneEver = new Set(LearnStore.getAllKnowDoneEver());
@@ -1970,7 +1966,7 @@ function calMonthPane(){
   const dt = new Date(state.selectedDate + 'T00:00:00');
   const holiday = HOLIDAYS[state.selectedDate];
   const dayTl = dayList.length ? dayList.map(it => { const payload = encodeURIComponent(JSON.stringify({ date: state.selectedDate, time: it.time, title: it.title })); return `<div class="tl-item ${it.done ? 'done' : ''}"><div style="display:flex;gap:10px;align-items:flex-start"><span class="check ${it.done ? 'done' : ''}" data-toggle-todo="${payload}"></span><div style="flex:1" data-toggle-todo="${payload}"><div class="tl-time">${it.time}</div><div class="tl-title">${esc(it.title)}</div><div class="tl-desc">${esc(it.desc || '')}</div></div>${it.manual ? `<button class="del-tx" data-del-todo="${payload}" style="margin-top:2px">✕</button>` : ''}</div></div>`; }).join('') : '<p class="tip" style="color:#8A90A2">这一天暂无事项记录。</p>';
-  return `<div class="card"><div class="cal-head"><span class="nav" data-act="prevMonth">‹</span><div class="m">${y} 年 ${m + 1} 月</div><span class="nav" data-act="nextMonth">›</span></div><div style="text-align:center;margin-bottom:12px"><button class="mini-add" data-act="backToToday" style="padding:6px 16px">↩ 回到今天</button></div><div class="cal-week"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div><div class="cal-grid">${gridHtml}</div></div><div class="card"><div class="row-between" style="margin-bottom:10px;"><div style="font-size:14px;font-weight:700;">${dt.getMonth()+1} 月 ${dt.getDate()} 日${holiday ? ' · ' + holiday : ''}</div><button class="mini-add" data-act="newTodo">＋ 新建待办</button></div><div class="tl">${dayTl}</div></div>`;
+  return `<div class="card"><div class="cal-head"><span class="nav" data-act="prevMonth">‹</span><div class="m">${y} 年 ${m + 1} 月</div><span class="nav" data-act="nextMonth">›</span></div><div style="text-align:center;margin-bottom:12px"><button class="mini-add" data-act="backToToday" style="padding:6px 16px">↩ 回到今天</button></div><div class="cal-week"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div><div class="cal-grid">${gridHtml}</div></div><div class="card"><div style="margin-bottom:10px;"><div style="font-size:14px;font-weight:700;">${dt.getMonth()+1} 月 ${dt.getDate()} 日${holiday ? ' · ' + holiday : ''}</div></div><div class="tl">${dayTl}</div></div>`;
 }
 function calUndonePane(){
   const today = todayStr();
@@ -2044,8 +2040,6 @@ function renderTxEditor(){
     </div>
   </div>`;
 }
-
-// ★ 运动计划：支持暂停/继续
 function sportSection(){
   const sub = state.sportSub || 'plan';
   const subs = [{ id:'plan', label:'今日计划' },{ id:'body', label:'身体/身材数据' },{ id:'formal', label:'正式训练' }];
@@ -2256,8 +2250,6 @@ async function jokeSection(){
   const body = state.jokeResults.map(r => { if (!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const j = r.data; return `<div class="card" style="padding:14px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:13.5px;line-height:1.85;color:#78350f;white-space:pre-wrap;background:linear-gradient(135deg,#fef3c7,#fde68a);padding:12px;border-radius:10px;border:1px solid #fbbf24;margin-top:4px;">${esc(j.text)}</div><div style="display:flex;gap:6px;margin-top:10px;"><button class="btn ghost" data-act="speak" data-text="${esc(j.text)}" data-lang="zh-CN">🔊 朗读</button></div></div>`; }).join('') || '<div class="tip-card">加载失败，点下面重试</div>';
   return `<div class="card" style="background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;border:0;"><div class="row-between" style="margin-bottom:10px;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;">😄 笑话</div><button class="link-btn" data-act="refreshJoke" style="color:#fff;opacity:.92;font-size:12.5px;">🔄 换一批</button></div><div style="font-size:19px;font-weight:750;">天聚 · 雷人笑话</div></div>${body}`;
 }
-
-// ★ 推荐：完全走 API
 async function recommendSection(){
   const catList = ['书','电影','播客','工具'];
   const catEmoji = { '书':'📚','电影':'🎬','播客':'🎧','工具':'🛠️' };
@@ -2648,7 +2640,6 @@ view.addEventListener('click', async e => {
   const act = t.dataset.act;
 
   if (act === 'speak'){ e.stopPropagation(); toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
-  // ★ 单词 + 例句（间隔 3 秒）
   if (act === 'speakWordScene'){ e.stopPropagation(); speakWordWithScene(t.dataset.word, t.dataset.scene, t); return; }
   if (act === 'copyText'){ copyText(t.dataset.text).then(ok => toast(ok?'已复制':'复制失败')); return; }
   if (act === 'openNews'){ openExternal(t.dataset.url); return; }
@@ -2656,6 +2647,30 @@ view.addEventListener('click', async e => {
   if (act === 'closeCenterTimer'){ finishWalkTimer(); return; }
   if (act === 'startRest'){ startRestTimer(t.dataset.code, parseInt(t.dataset.sec, 10)); return; }
   if (act === 'gotoBodyData'){ state.tab = 'life'; state.lifeSub = 'sport'; state.sportSub = 'body'; render(); return; }
+  // ★ 首页统计卡跳转
+  if (act === 'jumpFromHome'){
+    const target = t.dataset.target;
+    if (target === 'study'){ state.tab = 'study'; state.studySub = 'today'; }
+    else if (target === 'sport'){ state.tab = 'life'; state.lifeSub = 'sport'; state.sportSub = 'plan'; }
+    else if (target === 'money'){ state.tab = 'life'; state.lifeSub = 'money'; state.moneySub = 'record'; }
+    render();
+    return;
+  }
+  // ★ 首页时间线旁"新建待办"（默认今天）
+  if (act === 'newTodoToday'){
+    const date = todayStr();
+    const time = prompt('时间（如 09:00）', '09:00') || '09:00';
+    const title = prompt('事项'); if (!title) return;
+    const desc = prompt('备注（可留空）', '') || '';
+    const saved = getManualTodos();
+    if (!saved[date]) saved[date] = [];
+    saved[date].push({ time, title, desc, done:false });
+    saveManualTodos(saved);
+    buildCalendarFromPlans();
+    toast('已添加今日待办');
+    render({ keepScroll: true });
+    return;
+  }
   if (act === 'setOverride'){
     const mode = t.dataset.mode;
     const today = new Date(); today.setHours(0,0,0,0);
@@ -2713,7 +2728,7 @@ view.addEventListener('click', async e => {
   if (act === 'togglePassage'){ state.passageHidden = !state.passageHidden; render({ keepScroll: true }); return; }
   if (act === 'recCat'){
     state.recommendCat = t.dataset.cat;
-    CacheStore.save('rec-' + t.dataset.cat + '-' + DAY, null);  // ★ 清缓存强制重抓
+    CacheStore.save('rec-' + t.dataset.cat + '-' + DAY, null);
     render({ keepScroll: true });
     return;
   }
@@ -2767,17 +2782,6 @@ view.addEventListener('click', async e => {
   if (act === 'prevMonth'){ state.calMonth--; if (state.calMonth < 0){ state.calMonth = 11; state.calYear--; } HealthStore.save('calMonth', state.calMonth); HealthStore.save('calYear', state.calYear); render(); return; }
   if (act === 'nextMonth'){ state.calMonth++; if (state.calMonth > 11){ state.calMonth = 0; state.calYear++; } HealthStore.save('calMonth', state.calMonth); HealthStore.save('calYear', state.calYear); render(); return; }
   if (act === 'backToToday'){ const now = new Date(); state.calYear = now.getFullYear(); state.calMonth = now.getMonth(); state.selectedDate = todayStr(); render(); return; }
-  if (act === 'newTodo'){
-    const date = prompt('日期（YYYY-MM-DD）', state.selectedDate); if (!date) return;
-    const time = prompt('时间（如 09:00）', '09:00') || '09:00';
-    const title = prompt('事项'); if (!title) return;
-    const desc = prompt('备注（可留空）', '') || '';
-    const saved = getManualTodos();
-    if (!saved[date]) saved[date] = [];
-    saved[date].push({ time, title, desc, done:false });
-    saveManualTodos(saved);
-    render(); return;
-  }
 
   if (act === 'toggleManual'){ const a = document.getElementById('textInputArea'); if (a) a.classList.toggle('show'); return; }
   if (act === 'parseManual'){
@@ -2819,7 +2823,6 @@ view.addEventListener('click', async e => {
     render(); return;
   }
 
-  // ★ 运动：开始 / 暂停 / 继续 / 结束 / 重置
   if (act === 'startSport'){
     const t0 = document.getElementById('sportStartTime');
     const label = (t0 && t0.value) || fmtTime(new Date());
@@ -3081,10 +3084,8 @@ sheet.addEventListener('click', async e => {
   if (act === 'removeProduct'){ const stepId = state.pickingSkinStep; if (stepId){ delete skinProducts[stepId]; saveSkinProducts(); } closeSheet(); render({ keepScroll: true }); return; }
 });
 
-// ★ 语音记账：调用系统语音输入
 let _voiceTimerHandle = null;
 let _voiceActive = false;
-
 function startVoiceRecord(){
   if (!window.AndroidTTS || typeof AndroidTTS.startRecognize !== 'function'){
     toast('当前环境不支持语音识别');
@@ -3094,15 +3095,14 @@ function startVoiceRecord(){
   const mic = document.getElementById('micBtn');
   if (mic) mic.classList.add('listening');
   const hint = document.getElementById('micHint');
-  if (hint) hint.textContent = '正在聆听…（系统界面说话后自动返回）';
-  // 因为用系统界面，计时器只是显示大概时间
+  if (hint) hint.textContent = '正在聆听… 10 秒（再点麦克风可提前结束）';
   let left = 10;
   if (_voiceTimerHandle) clearInterval(_voiceTimerHandle);
   _voiceTimerHandle = setInterval(() => {
     left--;
     const h = document.getElementById('micHint');
-    if (h) h.textContent = `正在聆听… 还剩 ${left} 秒`;
-    if (left <= 0) { clearInterval(_voiceTimerHandle); _voiceTimerHandle = null; }
+    if (h) h.textContent = `正在聆听… 还剩 ${left} 秒（再点麦克风可提前结束）`;
+    if (left <= 0) stopVoiceRecord();
   }, 1000);
   try { AndroidTTS.startRecognize(10); }
   catch(e){ toast('启动失败：' + e.message); stopVoiceRecord(); }
@@ -3139,24 +3139,6 @@ tabbar.addEventListener('click', e => {
   stopSpeak(); state.tab = t.dataset.tab; render();
 });
 fab.addEventListener('click', () => openAIAssistant());
-document.getElementById('globalSearchBtn').addEventListener('click', () => {
-  openSheet(`<div class="sheet-head"><div class="sheet-emoji">🔍</div><div style="flex:1;min-width:0;"><h2>全局搜索</h2></div></div><div style="display:flex;gap:8px;align-items:center;background:#f8f9fd;border-radius:12px;padding:10px 14px;margin:14px 0;"><span style="font-size:15px;opacity:.5;">🔍</span><input id="globalSearchInput" placeholder="输入关键词…" style="flex:1;border:0;background:transparent;font-size:15px;outline:0;"></div><div id="globalSearchResults" style="max-height:60vh;overflow-y:auto;"></div>`);
-  setTimeout(() => {
-    const input = document.getElementById('globalSearchInput');
-    if (input){
-      input.focus();
-      input.addEventListener('input', () => {
-        const q = input.value.trim().toLowerCase();
-        const el = document.getElementById('globalSearchResults');
-        if (!q){ el.innerHTML = ''; return; }
-        const results = [];
-        SEED.VALVE_ALL.forEach(v => { if (v.q.toLowerCase().includes(q) || v.a.toLowerCase().includes(q)) results.push({ type:'valve', label:'知识', q:v.q, snip:v.a.slice(0,80) }); });
-        Object.keys(DeckLoader.loaded).forEach(id => { (DeckLoader.loaded[id]||[]).forEach(w => { if (w.w.toLowerCase().includes(q) || (w.cn||'').includes(input.value)) results.push({ type:'word', label:'单词', q:w.w, snip:(w.cn||'') }); }); });
-        el.innerHTML = results.slice(0,50).map(r => `<div style="padding:12px 4px;border-bottom:1px solid #f0f1f6;"><span style="display:inline-block;font-size:10.5px;font-weight:750;padding:2px 7px;border-radius:5px;margin-bottom:6px;background:${r.type==='valve'?'#eef0ff':'#ecfdf5'};color:${r.type==='valve'?'#4f46e5':'#047857'};">${r.label}</span><div style="font-size:14px;font-weight:650;line-height:1.5;margin-bottom:4px;">${esc(r.q)}</div><div style="font-size:12.5px;color:var(--sub);line-height:1.6;">${esc(r.snip)}</div></div>`).join('') || `<div style="text-align:center;padding:20px;font-size:12.5px;color:var(--sub);">没有找到</div>`;
-      });
-    }
-  }, 100);
-});
 
 window.addEventListener('beforeunload', () => {
   HealthStore.save('body', body);
@@ -3246,7 +3228,6 @@ function initWalkReminder(){
     if (el){
       const sess = getSportSession();
       if (sess && !sess.endTs && !sess.pausedAt){
-        // ★ 计算净训练时长（扣掉暂停）
         let elapsed = Date.now() - sess.startTs - (sess.pausedTotal || 0);
         const total = Math.floor(elapsed / 1000);
         const h = Math.floor(total/3600), m = Math.floor((total%3600)/60), s = total%60;
