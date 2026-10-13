@@ -77,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> request.grant(request.getResources()));
             }
 
-            // ★ 修复：改为手动构造 Intent，兼容所有文件管理器
+            // ★★★ 核心修复：始终用 */*，不读 accept ★★★
             @Override
             public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb,
                                              FileChooserParams params) {
@@ -86,16 +86,21 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
+                    // ★ 用 */*，让系统显示所有文件
                     i.setType("*/*");
-                    // 附加 accept 类型（如果 HTML 给了）
-                    String[] accept = params.getAcceptTypes();
-                    if (accept != null && accept.length > 0
-                            && accept[0] != null && !accept[0].isEmpty()) {
-                        // 只取第一个类型，太多反而被文件管理器忽略
-                        String t = accept[0].split(",")[0].trim();
-                        if (!t.isEmpty() && !"*".equals(t)) i.setType(t);
-                    }
-                    i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+                    // 附加常用类型，帮文件管理器定位
+                    String[] extraTypes = new String[]{
+                        "application/json",   // .json
+                        "text/csv",           // .csv
+                        "text/comma-separated-values",
+                        "text/plain",
+                        "application/vnd.ms-excel",
+                        "application/octet-stream"
+                    };
+                    i.putExtra(Intent.EXTRA_MIME_TYPES, extraTypes);
+                    // ★ 读权限
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    i.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                     startActivityForResult(Intent.createChooser(i, "选择文件"),
                             FILE_CHOOSER_CODE);
                 } catch (Exception e) {
@@ -140,6 +145,14 @@ public class MainActivity extends AppCompatActivity {
             if (filePathCallback != null) {
                 Uri[] results = null;
                 if (res == RESULT_OK && data != null) {
+                    // ★ 持久化读权限，避免读文件时权限丢失
+                    if (data.getData() != null) {
+                        try {
+                            getContentResolver().takePersistableUriPermission(
+                                    data.getData(),
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } catch (Exception ignored) {}
+                    }
                     if (data.getClipData() != null) {
                         int n = data.getClipData().getItemCount();
                         results = new Uri[n];
