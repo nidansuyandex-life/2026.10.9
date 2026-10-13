@@ -36,6 +36,9 @@ dependencies {
     implementation 'androidx.core:core:1.12.0'
     implementation 'com.google.android.material:material:1.11.0'
 
-    // 讯飞 SDK（如果暂时不用语音识别，也可以先不引）
+    // ★ 新增：WebSocket 客户端（用于讯飞 IAT）
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // 讯飞 SDK（可选，不用可以删）
     implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
 }
