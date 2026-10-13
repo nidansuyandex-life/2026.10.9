@@ -438,6 +438,31 @@ function toast(msg){
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 1900);
 }
 
+// ════════════════════════════════════════════════════════════
+// ★ 英文 → 中文 免费翻译（MyMemory，无需 key，每天 5000 字）
+// 结果会缓存到 localStorage，同一个句子不会重复请求
+// ════════════════════════════════════════════════════════════
+async function translateToChinese(text){
+  if (!text || !String(text).trim()) return '';
+  const t = String(text).trim();
+  const cacheKey = 'trans-cache:' + t.slice(0, 80);
+  const cached = LS.get(cacheKey, '');
+  if (cached) return cached;
+  try {
+    const q = t.slice(0, 450);
+    const url = 'https://api.mymemory.translated.net/get?q='
+      + encodeURIComponent(q) + '&langpair=en|zh-CN';
+    const d = await raceTimeout(fetchJson(url, 8000), 9000);
+    let translated = (d && d.responseData && d.responseData.translatedText) || '';
+    if (/MYMEMORY WARNING|QUERY LENGTH LIMIT|INVALID/i.test(translated)) translated = '';
+    if (translated){
+      LS.set(cacheKey, translated);
+      return translated;
+    }
+  } catch(e){ console.warn('翻译失败', e); }
+  return '';
+}
+
 const TIANAPI = '708c4bb3ecbb509f855b2aaa03e4a182';
 const APP_DEFAULTS = {
   showapi: { appid: '2174115', sign: '9325BaEB1C1140F5A55E9f35999615DF' },
@@ -1251,16 +1276,33 @@ const KnowledgeSource = {
 const QuoteSource = {
   async fetchOne(id){ if (id === 'quotable') return await this.fetchQuotable(); if (id === 'ensentence') return await this.fetchEnsentence(); if (id === 'enmaxim') return await this.fetchEnmaxim(); return null; },
   async fetchAll(){ return await Promise.all(QUOTE_SOURCES.map(async (src) => { try { const d = await raceTimeout(this.fetchOne(src.id), 12000); if (!d || !d.text) throw new Error('无内容'); return { ok:true, id:src.id, label:src.label, icon:src.icon, data:d }; }catch(e){ return { ok:false, id:src.id, label:src.label, icon:src.icon, error: friendlyErr(e) }; } })); },
-  async fetchQuotable(){ const d = await fetchJson('https://api.quotable.io/random', 6000); return { text: d.content, author: d.author || 'Unknown', cn: '', source:'quotable' }; },
-  async fetchEnsentence(){ const d = await tianapiFetch(`https://apis.tianapi.com/ensentence/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result || !d.result.en) throw new Error('code='+(d.code||'?')); return { text: d.result.en, author: '天聚 · 英语一句话', cn: d.result.zh || '', source:'tianapi' }; },
-  async fetchEnmaxim(){ const d = await tianapiFetch(`https://apis.tianapi.com/enmaxim/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); return { text: d.result.en || '', author: '天聚 · 英语格言', cn: d.result.zh || '', source:'tianapi' }; }
+  async fetchQuotable(){
+    const d = await fetchJson('https://api.quotable.io/random', 6000);
+    let cn = '';
+    try { cn = await translateToChinese(d.content); } catch(e){}
+    return { text: d.content, author: d.author || 'Unknown', cn, source:'quotable' };
+  },
+  async fetchEnsentence(){
+    const d = await tianapiFetch(`https://apis.tianapi.com/ensentence/index?key=${TIANAPI}`, 6000);
+    if (d.code !== 200 || !d.result || !d.result.en) throw new Error('code='+(d.code||'?'));
+    let cn = d.result.zh || '';
+    if (!cn) { try { cn = await translateToChinese(d.result.en); } catch(e){} }
+    return { text: d.result.en, author: '天聚 · 英语一句话', cn, source:'tianapi' };
+  },
+  async fetchEnmaxim(){
+    const d = await tianapiFetch(`https://apis.tianapi.com/enmaxim/index?key=${TIANAPI}`, 6000);
+    if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?'));
+    let cn = d.result.zh || '';
+    if (!cn) { try { cn = await translateToChinese(d.result.en || ''); } catch(e){} }
+    return { text: d.result.en || '', author: '天聚 · 英语格言', cn, source:'tianapi' };
+  }
 };
 const StorySource = {
   async fetchOne(id){ if (id === 'gutendex') return await this.fetchGutendex(); if (id === 'ensentence') return await this.fetchEnsentence(); if (id === 'enmaxim') return await this.fetchEnmaxim(); return null; },
   async fetchAll(){ return await Promise.all(STORY_SOURCES.map(async (src) => { try { const d = await raceTimeout(this.fetchOne(src.id), 12000); if (!d || !d.preview) throw new Error('无内容'); return { ok:true, id:src.id, label:src.label, icon:src.icon, data:d }; }catch(e){ return { ok:false, id:src.id, label:src.label, icon:src.icon, error: friendlyErr(e) }; } })); },
   async fetchGutendex(){ const d = await fetchJson('https://gutendex.com/books?languages=en&sort=popular&page=1', 6000); const list = d.results || []; if (!list.length) throw new Error('无数据'); const book = list[Math.floor(Math.random()*Math.min(list.length, 8))]; const fmts = book.formats || {}; const txtUrl = fmts['text/plain; charset=utf-8'] || fmts['text/plain']; if (!txtUrl) throw new Error('无文本'); const full = await fetchText(txtUrl, 6000); let start = full.indexOf('*** START OF'); if (start > 0) start = full.indexOf('\n', start)+1; else start = 0; const preview = full.slice(start, start+600).trim(); return { title: book.title, author:(book.authors||[]).map(a=>a.name).join(', '), preview: preview.slice(0,500), cn:'', url: txtUrl, source:'gutendex' }; },
-  async fetchEnsentence(){ const d = await tianapiFetch(`https://apis.tianapi.com/ensentence/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); return { title: '英语一句话', author: '天聚数行', preview: d.result.en, cn: d.result.zh || '', url: null, source:'tianapi' }; },
-  async fetchEnmaxim(){ const d = await tianapiFetch(`https://apis.tianapi.com/enmaxim/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); return { title: '英语格言', author: '天聚数行', preview: d.result.en, cn: d.result.zh || '', url: null, source:'tianapi' }; }
+  async fetchEnsentence(){ const d = await tianapiFetch(`https://apis.tianapi.com/ensentence/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); let cn = d.result.zh || ''; if (!cn) { try { cn = await translateToChinese(d.result.en||''); } catch(e){} } return { title: '英语一句话', author: '天聚数行', preview: d.result.en, cn, url: null, source:'tianapi' }; },
+  async fetchEnmaxim(){ const d = await tianapiFetch(`https://apis.tianapi.com/enmaxim/index?key=${TIANAPI}`, 6000); if (d.code !== 200 || !d.result) throw new Error('code='+(d.code||'?')); let cn = d.result.zh || ''; if (!cn) { try { cn = await translateToChinese(d.result.en||''); } catch(e){} } return { title: '英语格言', author: '天聚数行', preview: d.result.en, cn, url: null, source:'tianapi' }; }
 };
 const YiyanSource = { async fetch(){ const d = await fetchJson('https://v1.hitokoto.cn/', 5000); if (!d.hitokoto) throw new Error('无数据'); return { text: d.hitokoto, from: d.from || d.from_who || '' }; } };
 const NewsSource = {
@@ -2016,7 +2058,7 @@ function moneyExportPane(){
   const list = getRangeTransactions();
   const totalExp = list.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
   const totalInc = list.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
-  return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">选择时间范围</div><div class="chips" style="margin:0;flex-wrap:wrap;">${['month','lastMonth','3months','all'].map(r => `<span class="chip ${state.exportRange===r?'on':''}" data-act="setExportRange" data-range="${r}">${rangeLabel[r]}</span>`).join('')}</div><p class="tip" style="margin-top:10px;font-size:12px;color:var(--sub)">当前：${rangeLabel[state.exportRange]} · 共 ${list.length} 条记录</p></div><button class="btn-primary" data-act="exportCsv">📤 导出 CSV</button><button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button><div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div><div style="font-size:12px;color:var(--sub);line-height:1.7">记录数：${list.length} 条<br>支出合计：¥ ${totalExp.toFixed(2)}<br>收入合计：¥ ${totalInc.toFixed(2)}</div></div>`;
+  return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">选择时间范围</div><div class="chips" style="margin:0;flex-wrap:wrap;">${['month','lastMonth','3months','all'].map(r => `<span class="chip ${state.exportRange===r?'on':''}" data-act="setExportRange" data-range="${r}">${rangeLabel[r]}</span>`).join('')}</div><p class="tip" style="margin-top:10px;font-size:12px;color:var(--sub)">当前：${rangeLabel[state.exportRange]} · 共 ${list.length} 条记录</p></div><button class="btn-primary" data-act="exportCsv">📤 导出 CSV（会弹窗显示路径）</button><button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button><div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div><div style="font-size:12px;color:var(--sub);line-height:1.7">记录数：${list.length} 条<br>支出合计：¥ ${totalExp.toFixed(2)}<br>收入合计：¥ ${totalInc.toFixed(2)}</div></div>`;
 }
 function renderTxEditor(){
   const p = state.pendingTx;
@@ -2235,7 +2277,7 @@ async function expressSection(){
   const quoteOkCount = state.quoteResults.filter(r => r.ok).length;
   const storyOkCount = state.storyResults.filter(r => r.ok).length;
   const todayPassage = dailyPick(SEED.EXPRESS_PASSAGES, 1, 41)[0];
-  return `<div class="card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:0;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:8px;">📖 今日诗词</div><div style="font-size:19px;font-weight:750;margin-bottom:8px;">${esc(todayPassage.title)}</div><div style="font-size:15px;line-height:2;opacity:.95;white-space:pre-wrap;${state.passageHidden?'filter:blur(8px);user-select:none;':''}">${esc(todayPassage.text)}</div><div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;"><button class="btn" style="background:rgba(255,255,255,.9);color:var(--brand);" data-act="speak" data-text="${esc(todayPassage.text)}" data-lang="zh-CN">🔊 朗读一遍</button><button class="btn" style="background:rgba(255,255,255,.18);color:#fff;" data-act="togglePassage">${state.passageHidden?'👁 显示原文':'🎤 开始复述'}</button>${!passageDone?`<button class="btn" style="background:rgba(255,255,255,.18);color:#fff;" data-act="markPassageDone">✓ 读完了</button>`:'<span style="align-self:center;font-size:12px;opacity:.7;">✓ 今日已读</span>'}</div></div><div class="sec-title">中文金句</div>${yiyanBlock}<div class="sec-title">英文名言 <span class="muted">成功 ${quoteOkCount}/3</span></div>${state.quoteLoading || !state.quoteResults.length ? `<div class="loading-card" style="padding:18px;">💬</div>` : state.quoteResults.map(r => { if (!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const q = r.data; return `<div class="card" style="padding:14px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;line-height:1.75;color:#3b0764;font-weight:600;font-style:italic;margin-top:4px;">"${esc(q.text)}"</div>${q.cn?`<div style="font-size:12px;line-height:1.65;color:#6b21a8;margin-top:8px;padding-top:8px;border-top:1px dashed #f0abfc;">${esc(q.cn)}</div>`:''}<div style="font-size:12px;color:#6b21a8;margin-top:8px;text-align:right;">—— ${esc(q.author||'Unknown')}</div><div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;"><button class="btn ghost" data-act="speak" data-text="${esc(q.text)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">英文短文 <span class="muted">成功 ${storyOkCount}/3</span></div>${state.storyLoading || !state.storyResults.length ? `<div class="loading-card" style="padding:18px;">📚</div>` : state.storyResults.map(r => { if (!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const s = r.data; return `<div class="card" style="padding:14px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;font-weight:750;color:#065f46;line-height:1.5;margin-top:4px;">${esc(s.title)}</div><div style="font-size:12.5px;line-height:1.7;color:#064e3b;margin-top:8px;">${esc((s.preview||'').slice(0,180))}...</div><div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;"><button class="btn ghost" data-act="speak" data-text="${esc(s.preview)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">今日场景练习</div><div class="card"><div style="display:inline-block;font-size:11px;font-weight:750;color:#b45309;background:#fef3c7;padding:3px 9px;border-radius:6px;margin-bottom:10px;">${esc(todayScene.cat)}</div><div class="know-q">${esc(todayScene.q)}</div><div style="margin-top:11px;padding:11px 13px;background:#f8f9fd;border-left:3px solid var(--brand);border-radius:0 10px 10px 0;font-size:12.5px;line-height:1.75;color:#4b5265;"><b>要求：</b>${esc(todayScene.guide)}</div><textarea class="answer-input" id="exprAnswer" placeholder="写下你的回答…">${esc(savedAnswer)}</textarea><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="btn primary" data-act="gradeAnswer" data-scene="${esc(todayScene.cat)}" data-q="${esc(todayScene.q)}" data-guide="${esc(todayScene.guide)}">${savedGrade?'🔄 重新评分':'✨ 让 AI 评分'}</button></div><div id="gradeResult">${renderGradeCard(savedGrade)}</div></div>`;
+  return `<div class="card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:0;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:8px;">📖 今日诗词</div><div style="font-size:19px;font-weight:750;margin-bottom:8px;">${esc(todayPassage.title)}</div><div style="font-size:15px;line-height:2;opacity:.95;white-space:pre-wrap;${state.passageHidden?'filter:blur(8px);user-select:none;':''}">${esc(todayPassage.text)}</div><div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;"><button class="btn" style="background:rgba(255,255,255,.9);color:var(--brand);" data-act="speak" data-text="${esc(todayPassage.text)}" data-lang="zh-CN">🔊 朗读一遍</button><button class="btn" style="background:rgba(255,255,255,.18);color:#fff;" data-act="togglePassage">${state.passageHidden?'👁 显示原文':'🎤 开始复述'}</button>${!passageDone?`<button class="btn" style="background:rgba(255,255,255,.18);color:#fff;" data-act="markPassageDone">✓ 读完了</button>`:'<span style="align-self:center;font-size:12px;opacity:.7;">✓ 今日已读</span>'}</div></div><div class="sec-title">中文金句</div>${yiyanBlock}<div class="sec-title">英文名言 <span class="muted">成功 ${quoteOkCount}/3</span></div>${state.quoteLoading || !state.quoteResults.length ? `<div class="loading-card" style="padding:18px;">💬</div>` : state.quoteResults.map(r => { if (!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const q = r.data; return `<div class="card" style="padding:14px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;line-height:1.75;color:#3b0764;font-weight:600;font-style:italic;margin-top:4px;">"${esc(q.text)}"</div>${q.cn?`<div style="font-size:12px;line-height:1.65;color:#6b21a8;margin-top:8px;padding-top:8px;border-top:1px dashed #f0abfc;">${esc(q.cn)}</div>`:''}<div style="font-size:12px;color:#6b21a8;margin-top:8px;text-align:right;">—— ${esc(q.author||'Unknown')}</div><div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;"><button class="btn ghost" data-act="speak" data-text="${esc(q.text)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">英文短文 <span class="muted">成功 ${storyOkCount}/3</span></div>${state.storyLoading || !state.storyResults.length ? `<div class="loading-card" style="padding:18px;">📚</div>` : state.storyResults.map(r => { if (!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const s = r.data; return `<div class="card" style="padding:14px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:14px;font-weight:750;color:#065f46;line-height:1.5;margin-top:4px;">${esc(s.title)}</div><div style="font-size:12.5px;line-height:1.7;color:#064e3b;margin-top:8px;">${esc((s.preview||'').slice(0,180))}...</div>${s.cn?`<div style="font-size:12px;line-height:1.65;color:#047857;margin-top:8px;padding-top:8px;border-top:1px dashed #a7f3d0;">${esc(s.cn)}</div>`:''}<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;"><button class="btn ghost" data-act="speak" data-text="${esc(s.preview)}" data-lang="en-US">🔊 朗读</button></div></div>`; }).join('')}<div class="sec-title">今日场景练习</div><div class="card"><div style="display:inline-block;font-size:11px;font-weight:750;color:#b45309;background:#fef3c7;padding:3px 9px;border-radius:6px;margin-bottom:10px;">${esc(todayScene.cat)}</div><div class="know-q">${esc(todayScene.q)}</div><div style="margin-top:11px;padding:11px 13px;background:#f8f9fd;border-left:3px solid var(--brand);border-radius:0 10px 10px 0;font-size:12.5px;line-height:1.75;color:#4b5265;"><b>要求：</b>${esc(todayScene.guide)}</div><textarea class="answer-input" id="exprAnswer" placeholder="写下你的回答…">${esc(savedAnswer)}</textarea><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="btn primary" data-act="gradeAnswer" data-scene="${esc(todayScene.cat)}" data-q="${esc(todayScene.q)}" data-guide="${esc(todayScene.guide)}">${savedGrade?'🔄 重新评分':'✨ 让 AI 评分'}</button></div><div id="gradeResult">${renderGradeCard(savedGrade)}</div></div>`;
 }
 function renderGradeCard(g){
   if (!g) return '';
@@ -2308,7 +2350,7 @@ function meView(){
     <div style="display:flex;align-items:baseline;gap:8px;padding:10px 4px;"><span style="font-size:22px;font-weight:850;color:var(--hot);min-width:52px;">${transactions.length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">笔记账记录</span></div>
   </div>
   <div class="card"><div class="sec-title" style="margin:0 0 12px;">🤖 AI 助手配置</div><select id="aiProvider" style="margin-bottom:10px;"><option value="none" ${AI.provider==='none'?'selected':''}>不启用</option><option value="deepseek" ${AI.provider==='deepseek'?'selected':''}>DeepSeek</option><option value="qwen" ${AI.provider==='qwen'?'selected':''}>通义千问</option><option value="zhipu" ${AI.provider==='zhipu'?'selected':''}>智谱 GLM</option></select><input type="password" id="aiKey" placeholder="sk-..." value="${esc(AI.apiKey)}"><button class="btn primary wide" style="margin-top:14px" data-act="saveAI">保存配置</button></div>
-  <div class="card"><div class="sec-title" style="margin:0 0 12px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="importData">📥 导入（JSON）</button></div>
+  <div class="card"><div class="sec-title" style="margin:0 0 12px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON，会弹窗显示路径）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="importData">📥 导入（JSON）</button></div>
   <div class="card" style="border:1px solid #fee2e2;"><div class="sec-title" style="margin:0 0 6px;color:#dc2626;">危险操作</div><button class="btn danger wide" data-act="clearData">🗑 清空本设备数据</button></div>
   <div class="foot-note">数据保存在本设备 · 请定期备份</div>`;
 }
@@ -2647,7 +2689,6 @@ view.addEventListener('click', async e => {
   if (act === 'closeCenterTimer'){ finishWalkTimer(); return; }
   if (act === 'startRest'){ startRestTimer(t.dataset.code, parseInt(t.dataset.sec, 10)); return; }
   if (act === 'gotoBodyData'){ state.tab = 'life'; state.lifeSub = 'sport'; state.sportSub = 'body'; render(); return; }
-  // ★ 首页统计卡跳转
   if (act === 'jumpFromHome'){
     const target = t.dataset.target;
     if (target === 'study'){ state.tab = 'study'; state.studySub = 'today'; }
@@ -2656,18 +2697,24 @@ view.addEventListener('click', async e => {
     render();
     return;
   }
-  // ★ 首页时间线旁"新建待办"（默认今天）
+  // ★ 首页"新建待办"：先问日期，再问时间/事项/备注
   if (act === 'newTodoToday'){
-    const date = todayStr();
-    const time = prompt('时间（如 09:00）', '09:00') || '09:00';
-    const title = prompt('事项'); if (!title) return;
-    const desc = prompt('备注（可留空）', '') || '';
+    const dateInput = prompt('日期（YYYY-MM-DD，默认今天）', todayStr());
+    if (dateInput === null) return;
+    const date = (dateInput || '').trim() || todayStr();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)){ toast('日期格式应为 YYYY-MM-DD'); return; }
+    const time = prompt('时间（如 09:00）', '09:00');
+    if (time === null) return;
+    const title = prompt('事项');
+    if (!title || !title.trim()) return;
+    const desc = prompt('备注（可留空）', '');
+    if (desc === null) return;
     const saved = getManualTodos();
     if (!saved[date]) saved[date] = [];
-    saved[date].push({ time, title, desc, done:false });
+    saved[date].push({ time: (time||'09:00').trim(), title: title.trim(), desc: (desc||'').trim(), done:false });
     saveManualTodos(saved);
     buildCalendarFromPlans();
-    toast('已添加今日待办');
+    toast('已添加 ' + date + ' 的待办');
     render({ keepScroll: true });
     return;
   }
@@ -3126,6 +3173,10 @@ window.onVoiceResult = function(text){
 window.onVoiceError = function(err){
   stopVoiceRecord();
   toast('语音识别失败：' + (err || '未知错误'));
+};
+window.onFileSaved = function(ok, pathOrMsg){
+  if (ok) console.log('文件已保存：' + pathOrMsg);
+  else console.log('文件保存失败：' + pathOrMsg);
 };
 view.addEventListener('click', e => {
   const mic = e.target.closest('#micBtn');
