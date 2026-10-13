@@ -522,12 +522,7 @@ const SEED = {
     {title:'江雪',text:'千山鸟飞绝，万径人踪灭。孤舟蓑笠翁，独钓寒江雪。',tips:'柳宗元。'},
     {title:'相思',text:'红豆生南国，春来发几枝。愿君多采撷，此物最相思。',tips:'王维。'}
   ],
-  RECOMMEND:{
-    '书':[{name:'人类简史',author:'尤瓦尔·赫拉利',emoji:'📖',why:'从认知革命到人工智能。',web:q=>`https://weread.qq.com/web/search/books?keyword=${encodeURIComponent(q)}`}],
-    '电影':[{name:'肖申克的救赎',author:'1994',emoji:'🎬',why:'关于希望的电影。',web:q=>`https://search.douban.com/movie/subject_search?search_text=${encodeURIComponent(q)}`}],
-    '播客':[{name:'忽左忽右',author:'程衍樑',emoji:'🎧',why:'聊国际政治、历史、文化。',web:q=>`https://www.xiaoyuzhoufm.com/search?q=${encodeURIComponent(q)}`}],
-    '工具':[{name:'Obsidian',author:'笔记工具',emoji:'📝',why:'Markdown 笔记。',web:()=>`https://obsidian.md/`}]
-  }
+  RECOMMEND: {}   // ★ 改为空，走 API
 };
 SEED.VALVE_ALL = [];
 const DATA_STATUS = { valve:0, words:0, decks:0, valveOk:false, wordsOk:false, thinking:0, scenes:0 };
@@ -1042,10 +1037,7 @@ function analyzeGarment(){
   return { rows, alerts, suggests, score, sizeType };
 }
 
-// ================================================================
-// ★ 中文数字 → 阿拉伯数字
-// 支持：一/二/两/三…/十/十五/二十/三十五/一百二十，也支持纯阿拉伯数字
-// ================================================================
+// ★ 中文数字 → 阿拉伯
 function cnToNumber(str){
   if (str == null) return NaN;
   const s = String(str).trim();
@@ -1072,51 +1064,32 @@ function cnToNumber(str){
   }
   return result;
 }
-
 function round2(n){ return Math.round(n * 100) / 100; }
 
-// ================================================================
-// ★ 金额解析：支持各种口语说法
-//   "17块3毛5"     → 17.35
-//   "17块3毛5分"   → 17.35
-//   "16块5"        → 16.5
-//   "17块35"       → 17.35
-//   "17元"         → 17
-//   "17快"         → 17   （语音常把"块"识别成"快"）
-//   "晚饭17"       → 17
-//   "一百二十块"   → 120
-// ================================================================
+// ★ 金额解析
 function parseChineseAmount(text){
   if (text == null) return NaN;
   let s = String(text)
     .replace(/快/g, '块')
     .replace(/园/g, '元')
     .replace(/圓/g, '元');
-
   const numP = '(\\d+(?:\\.\\d+)?|[零〇一二两三四五六七八九十]+)';
 
-  // 模式1: X[块元] Y[毛角] Z[分]
   let m = s.match(new RegExp(numP + '\\s*[块元]\\s*' + numP + '\\s*[毛角]\\s*' + numP + '\\s*分?'));
   if (m){
     const y = cnToNumber(m[1]), j = cnToNumber(m[2]), f = cnToNumber(m[3]);
     if (!isNaN(y) && !isNaN(j) && !isNaN(f)) return round2(y + j/10 + f/100);
   }
-
-  // 模式2: X[毛角] Z[分]
   m = s.match(new RegExp(numP + '\\s*[毛角]\\s*' + numP + '\\s*分?'));
   if (m){
     const j = cnToNumber(m[1]), f = cnToNumber(m[2]);
     if (!isNaN(j) && !isNaN(f)) return round2(j/10 + f/100);
   }
-
-  // 模式3: X[块元] Y[毛角]
   m = s.match(new RegExp(numP + '\\s*[块元]\\s*' + numP + '\\s*[毛角]'));
   if (m){
     const y = cnToNumber(m[1]), j = cnToNumber(m[2]);
     if (!isNaN(y) && !isNaN(j)) return round2(y + j/10);
   }
-
-  // 模式4: X[块元] Y
   m = s.match(new RegExp(numP + '\\s*[块元]\\s*' + numP));
   if (m){
     const y = cnToNumber(m[1]);
@@ -1138,35 +1111,16 @@ function parseChineseAmount(text){
       }
     }
   }
-
-  // 模式5: X[块元]
   m = s.match(new RegExp(numP + '\\s*[块元]'));
-  if (m){
-    const y = cnToNumber(m[1]);
-    if (!isNaN(y)) return round2(y);
-  }
-
-  // 模式6: X[毛角]
+  if (m){ const y = cnToNumber(m[1]); if (!isNaN(y)) return round2(y); }
   m = s.match(new RegExp(numP + '\\s*[毛角]'));
-  if (m){
-    const j = cnToNumber(m[1]);
-    if (!isNaN(j)) return round2(j/10);
-  }
-
-  // 兜底1：第一个阿拉伯数字
+  if (m){ const j = cnToNumber(m[1]); if (!isNaN(j)) return round2(j/10); }
   m = s.match(/(\d+(?:\.\d+)?)/);
   if (m) return round2(parseFloat(m[1]));
-
-  // 兜底2：第一个中文数字
   m = s.match(/([零〇一二两三四五六七八九十]+)/);
-  if (m){
-    const v = cnToNumber(m[1]);
-    if (!isNaN(v)) return round2(v);
-  }
-
+  if (m){ const v = cnToNumber(m[1]); if (!isNaN(v)) return round2(v); }
   return NaN;
 }
-
 function parseTransactionText(text){
   const t = String(text || '').trim();
   const amount = parseChineseAmount(t);
@@ -1192,7 +1146,6 @@ function getRangeTransactions(){
   if (state.exportRange === '3months'){ const c = new Date(); c.setMonth(c.getMonth() - 2); const cut = `${c.getFullYear()}-${pad(c.getMonth()+1)}-01`; return list.filter(t => t.date >= cut); }
   return list;
 }
-
 function exportCsv(){
   const list = getRangeTransactions();
   if (!list.length){ toast('所选时间范围内没有记录'); return; }
@@ -1215,7 +1168,6 @@ function exportCsv(){
     toast('已导出：' + filename);
   } catch(err){ toast('导出失败：' + err.message); }
 }
-
 function importTransactionsCsv(){
   const input = document.createElement('input');
   input.type = 'file';
@@ -1224,10 +1176,7 @@ function importTransactionsCsv(){
   input.style.left = '-9999px';
   input.style.top = '-9999px';
   input.style.opacity = '0';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (file) doImportCsv(file);
-  };
+  input.onchange = e => { const file = e.target.files[0]; if (file) doImportCsv(file); };
   document.body.appendChild(input);
   input.click();
   setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
@@ -1327,6 +1276,67 @@ const JokeSource = {
   async fetchOne(){ const d = await tianapiFetch(`https://apis.tianapi.com/joke/index?key=${TIANAPI}&num=10`, 6000); if (d.code !== 200) throw new Error('code='+d.code); const list = extractList(d.result); if (!list.length) throw new Error('无内容'); const p = list[Math.floor(Math.random()*list.length)]; return { text: (p.content || p.text || '').trim(), source:'tianapi' }; }
 };
 
+// ★ 推荐 API 抓取
+async function fetchRecommendMovie(){
+  const url = `https://api.themoviedb.org/3/trending/movie/day?api_key=${APP_DEFAULTS.tmdb.key}&language=zh-CN`;
+  const d = await fetchJson(url, 8000);
+  const list = d.results || [];
+  if (!list.length) throw new Error('无数据');
+  const m = list[Math.floor(Math.random() * Math.min(10, list.length))];
+  return {
+    name: m.title || m.original_title,
+    author: (m.release_date || '').slice(0,4),
+    rating: m.vote_average ? m.vote_average.toFixed(1) : '',
+    cover: m.poster_path ? `https://image.tmdb.org/t/p/w200${m.poster_path}` : '',
+    why: m.overview || '（暂无简介）',
+    url: m.id ? `https://www.themoviedb.org/movie/${m.id}?language=zh-CN` : ''
+  };
+}
+async function fetchRecommendBook(){
+  const seed = DAY % 1000;
+  const url = `https://openlibrary.org/search.json?q=the&sort=random&limit=20&page=${seed % 10 + 1}`;
+  const d = await fetchJson(url, 8000);
+  const list = d.docs || [];
+  if (!list.length) throw new Error('无数据');
+  const b = list[Math.floor(Math.random() * list.length)];
+  return {
+    name: b.title || '未知书名',
+    author: (b.author_name || []).slice(0, 2).join(', ') || '',
+    cover: b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg` : '',
+    why: `首次出版：${b.first_publish_year || '未知'}。${b.subject ? '主题：' + b.subject.slice(0,3).join('、') : ''}`,
+    url: b.key ? `https://openlibrary.org${b.key}` : ''
+  };
+}
+async function fetchRecommendPodcast(){
+  const terms = ['technology', 'business', 'health', 'science', 'culture'];
+  const term = terms[DAY % terms.length];
+  const url = `https://itunes.apple.com/search?media=podcast&term=${term}&limit=20&country=us`;
+  const d = await fetchJson(url, 8000);
+  const list = d.results || [];
+  if (!list.length) throw new Error('无数据');
+  const p = list[Math.floor(Math.random() * list.length)];
+  return {
+    name: p.collectionName || p.trackName || '未知播客',
+    author: p.artistName || '',
+    cover: p.artworkUrl100 || '',
+    why: `题材：${(p.primaryGenreName || '综合')}。${p.trackCount ? '共 ' + p.trackCount + ' 集' : ''}`,
+    url: p.collectionViewUrl || ''
+  };
+}
+async function fetchRecommendTool(){
+  const url = 'https://api.github.com/search/repositories?q=stars:%3E5000&sort=stars&order=desc&per_page=30';
+  const d = await fetchJson(url, 8000);
+  const list = d.items || [];
+  if (!list.length) throw new Error('无数据');
+  const pick = list[Math.floor(Math.random() * Math.min(15, list.length))];
+  return {
+    name: pick.full_name,
+    author: `⭐ ${pick.stargazers_count} · ${pick.language || '通用'}`,
+    why: pick.description || '（暂无描述）',
+    url: pick.html_url
+  };
+}
+
 async function fetchWeather(){
   const el1 = document.getElementById('homeWeather');
   const el2 = document.getElementById('homeTemp');
@@ -1361,7 +1371,6 @@ async function fetchWeather(){
 
 let _currentSpeakBtn = null;
 let _speakSeq = 0;
-
 function stopSpeak(){
   try { if (window.AndroidTTS && AndroidTTS.stopSpeak) AndroidTTS.stopSpeak(); } catch(e){}
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e){}
@@ -1370,7 +1379,6 @@ function stopSpeak(){
   _currentSpeakBtn = null;
   _speakSeq++;
 }
-
 function toggleSpeak(text, lang, btn){
   if (!text) { toast('没有内容可朗读'); return; }
   const wasPlaying = btn && btn.classList.contains('playing');
@@ -1424,6 +1432,39 @@ function toggleSpeak(text, lang, btn){
   player.onerror = () => { cleanup(); toast('朗读失败，请检查网络'); };
   const p = player.play();
   if (p && p.catch) p.catch(() => { cleanup(); toast('朗读被拦截，请再点一次'); });
+}
+
+// ★ 单词 + 例句（间隔 3 秒）
+function speakWordWithScene(word, scene, btn){
+  const wasPlaying = btn && btn.classList.contains('playing');
+  stopSpeak();
+  if (wasPlaying) return;
+  const seq = ++_speakSeq;
+  if (btn) { btn.classList.add('playing'); _currentSpeakBtn = btn; }
+
+  const doSpeak = (txt) => {
+    if (window.AndroidTTS && typeof AndroidTTS.speak === 'function') AndroidTTS.speak(txt, 'en-US');
+    else if (window.speechSynthesis){
+      try { const u = new SpeechSynthesisUtterance(txt); u.lang = 'en-US'; u.rate = 0.95; speechSynthesis.speak(u); } catch(e){}
+    }
+  };
+  const clearBtn = () => {
+    if (seq === _speakSeq && _currentSpeakBtn){
+      _currentSpeakBtn.classList.remove('playing');
+      _currentSpeakBtn = null;
+    }
+  };
+
+  doSpeak(word);
+  if (scene){
+    setTimeout(() => {
+      if (seq !== _speakSeq) return;
+      doSpeak(scene);
+      setTimeout(clearBtn, Math.max(1500, scene.length * 200));
+    }, 3000);
+  } else {
+    setTimeout(clearBtn, 1500);
+  }
 }
 
 function copyText(text){
@@ -1617,7 +1658,7 @@ function homeView(){
   </div>
   <div class="stats" style="grid-template-columns:repeat(3,1fr)">
     <div class="stat"><div class="v" style="color:var(--brand)">${doneTasks}/${tasks.length}</div><div class="k">今日学习</div></div>
-    <div class="stat"><div class="v" style="color:var(--accent)">${todaySess ? (todaySess.endTs ? '✓' : '⏳') : '—'}</div><div class="k">训练状态</div></div>
+    <div class="stat"><div class="v" style="color:var(--accent)">${todaySess ? (todaySess.endTs ? '✓' : (todaySess.pausedAt ? '⏸' : '⏳')) : '—'}</div><div class="k">训练状态</div></div>
     <div class="stat"><div class="v" style="color:var(--hot)">¥${monthExp.toFixed(0)}</div><div class="k">本月支出</div></div>
   </div>
   <div class="sec-title" style="margin:14px 4px 8px;">今日身体状态 <span class="muted">点击切换</span></div>
@@ -1697,8 +1738,9 @@ async function englishSection(){
   }
   return head;
 }
+
+// ★ wordCard：喇叭调用 speakWordWithScene，单词 + 例句间隔 3 秒
 function wordCard(w, i, isDone, isDoneToday){
-  const speakText = w.scene ? `${w.w}. ${w.scene}` : w.w;
   return `<div class="card ${isDone?'done':''}" data-word="${esc(w.w)}" data-deck="${esc(w.deck||'')}" style="position:relative;">
     <div style="display:flex;align-items:flex-start;gap:12px;cursor:pointer" data-act="learnWord">
       <div style="width:26px;height:26px;border-radius:50%;background:${isDone?'var(--brand)':'#f0f1f8'};color:${isDone?'#fff':'#8a90a6'};display:grid;place-items:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px;">${isDone?'✓':i+1}</div>
@@ -1717,12 +1759,13 @@ function wordCard(w, i, isDone, isDoneToday){
       <div style="font-size:12.5px;color:var(--sub);margin-top:5px;">${esc(w.sceneCn||'')}</div>
     </div>`:''}
     <button style="position:absolute;top:14px;right:14px;border:0;background:#f3f4fa;width:38px;height:38px;border-radius:12px;font-size:16px;cursor:pointer;"
-      data-act="speak"
-      data-text="${esc(speakText)}"
-      data-lang="en-US"
-      title="朗读单词和例句">🔊</button>
+      data-act="speakWordScene"
+      data-word="${esc(w.w)}"
+      data-scene="${esc(w.scene||'')}"
+      title="朗读单词和例句（间隔 3 秒）">🔊</button>
   </div>`;
 }
+
 function valveSection(){
   const q = state.searchQuery || ''; const cat = state.valveCat || '全部';
   const knowDoneEver = new Set(LearnStore.getAllKnowDoneEver());
@@ -2001,6 +2044,8 @@ function renderTxEditor(){
     </div>
   </div>`;
 }
+
+// ★ 运动计划：支持暂停/继续
 function sportSection(){
   const sub = state.sportSub || 'plan';
   const subs = [{ id:'plan', label:'今日计划' },{ id:'body', label:'身体/身材数据' },{ id:'formal', label:'正式训练' }];
@@ -2033,9 +2078,18 @@ function sportPlanPane(){
     weekRows.push(`<div class="week-row ${cls.join(' ')}"><span class="d">${dayNames[i]}</span><span class="dt">${fmtShort(d)}</span><span class="a">${label}</span><span class="t">${duration}</span></div>`);
   }
   let sessionBlock = '';
-  if (!sess){ sessionBlock = `<div class="dim-row"><span class="lb">开始时间</span><input type="time" id="sportStartTime" value="${fmtTime(new Date())}" style="width:130px"></div><p class="tip" style="color:var(--sub);margin-top:8px;font-size:12.5px">设置开始时间后点击「开始打卡」。</p><button class="btn-primary" data-act="startSport" style="margin-top:14px">▶ 开始打卡</button>`; }
-  else if (sess.endTs){ const total = sess.endTs - sess.startTs; const setCount = Object.values(sess.sets || {}).reduce((a,b) => a + b.length, 0); const totalMin = Math.floor(total/60000); sessionBlock = `<div class="sport-timer">${Math.floor(totalMin/60) > 0 ? Math.floor(totalMin/60) + ':' + pad(totalMin % 60) : totalMin + '分'}</div><div class="sport-timer-sub">本次训练总时长</div><div class="sport-meta"><span>开始 <b>${sess.startLabel || '—'}</b></span><span>结束 <b>${fmtTime(new Date(sess.endTs))}</b></span><span>完成组数 <b>${setCount}</b></span></div><div style="text-align:center"><span class="sport-done-badge">🎉 今日训练已完成</span></div><button class="btn-ghost-h" data-act="resetSport" style="margin-top:14px">↺ 重置今日打卡</button>`; }
-  else { sessionBlock = `<div class="sport-timer" id="sportTimer">00:00</div><div class="sport-timer-sub">已训练时长（从 ${sess.startLabel || '—'} 开始）</div><div class="sport-meta"><span>已完成组数 <b id="sportSetCount">0</b></span><span>开始于 <b>${sess.startLabel || '—'}</b></span></div><button class="btn-ghost-h" data-act="endSport" style="margin-top:14px">■ 结束打卡</button><button class="btn-ghost-h" data-act="resetSport" style="margin-top:8px;background:#FFEDEA;color:var(--hot)">↺ 重置今日打卡</button>`; }
+  if (!sess){
+    sessionBlock = `<div class="dim-row"><span class="lb">开始时间</span><input type="time" id="sportStartTime" value="${fmtTime(new Date())}" style="width:130px"></div><p class="tip" style="color:var(--sub);margin-top:8px;font-size:12.5px">设置开始时间后点击「开始打卡」。</p><button class="btn-primary" data-act="startSport" style="margin-top:14px">▶ 开始打卡</button>`;
+  } else if (sess.endTs){
+    const total = sess.endTs - sess.startTs - (sess.pausedTotal||0);
+    const setCount = Object.values(sess.sets || {}).reduce((a,b) => a + b.length, 0);
+    const totalMin = Math.floor(total/60000);
+    sessionBlock = `<div class="sport-timer">${Math.floor(totalMin/60) > 0 ? Math.floor(totalMin/60) + ':' + pad(totalMin % 60) : totalMin + '分'}</div><div class="sport-timer-sub">本次训练净时长</div><div class="sport-meta"><span>开始 <b>${sess.startLabel || '—'}</b></span><span>结束 <b>${fmtTime(new Date(sess.endTs))}</b></span><span>完成组数 <b>${setCount}</b></span></div><div style="text-align:center"><span class="sport-done-badge">🎉 今日训练已完成</span></div><button class="btn-ghost-h" data-act="resetSport" style="margin-top:14px">↺ 重置今日打卡</button>`;
+  } else if (sess.pausedAt){
+    sessionBlock = `<div class="sport-timer" style="color:#b45309;">⏸ 已暂停</div><div class="sport-timer-sub">从 ${sess.startLabel || '—'} 开始</div><div class="sport-meta"><span>已完成组数 <b id="sportSetCount">${Object.values(sess.sets||{}).reduce((a,b)=>a+b.length,0)}</b></span></div><button class="btn-primary" data-act="resumeSport" style="margin-top:14px;background:linear-gradient(135deg,#059669,#10b981);">▶ 继续训练</button><button class="btn-ghost-h" data-act="endSport" style="margin-top:8px;">■ 结束打卡</button><button class="btn-ghost-h" data-act="resetSport" style="margin-top:8px;background:#FFEDEA;color:var(--hot);">↺ 重置今日打卡</button>`;
+  } else {
+    sessionBlock = `<div class="sport-timer" id="sportTimer">00:00</div><div class="sport-timer-sub">已训练时长（从 ${sess.startLabel || '—'} 开始）</div><div class="sport-meta"><span>已完成组数 <b id="sportSetCount">${Object.values(sess.sets||{}).reduce((a,b)=>a+b.length,0)}</b></span><span>开始于 <b>${sess.startLabel || '—'}</b></span></div><button class="btn-primary" data-act="pauseSport" style="margin-top:14px;background:linear-gradient(135deg,#b45309,#f59e0b);">⏸ 暂停打卡</button><button class="btn-ghost-h" data-act="endSport" style="margin-top:8px;">■ 结束打卡</button><button class="btn-ghost-h" data-act="resetSport" style="margin-top:8px;background:#FFEDEA;color:var(--hot);">↺ 重置今日打卡</button>`;
+  }
   return `<div class="card" style="background:linear-gradient(135deg,var(--hot),var(--hot2));color:#fff;border:0;"><div style="font-size:19px;font-weight:750;margin-bottom:8px;">${esc(plan.label)}</div><div style="font-size:13.5px;opacity:.92;">${esc(plan.summary)} · ${plan.duration}</div></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">训练打卡</div>${sessionBlock}</div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">本周固定结构 <span class="muted" style="color:var(--sub);font-size:11.5px">${weekInfo}</span></div>${weekRows.join('')}</div><div class="card" style="background:linear-gradient(135deg,#FFF6F2,#FFEDE6);border:1.5px solid #FFD9CC;"><div class="row-between" style="margin-bottom:8px;"><div style="font-size:13px;font-weight:700;color:#E4573D;">📅 计划开始日期</div><span style="font-size:11.5px;color:#8A5A48;">${weekInfo}</span></div><div class="dim-row" style="border-bottom:none;"><span class="lb" style="color:#8A5A48;">从哪天开始</span><input type="date" id="planStartInput" value="${localDateStr(PLAN_START)}" style="width:150px"></div><div style="display:flex;gap:8px;margin-top:10px;"><button class="mini-add" data-act="resetPlanStart" style="flex:1">重置为今天</button><button class="mini-add ghost" data-act="shiftPlanStart" style="flex:1">往后顺延 1 周</button></div></div>`;
 }
 function sportBodyPane(){
@@ -2048,7 +2102,7 @@ function sportBodyPane(){
   const hSessions = getSportSessions();
   const now = new Date();
   let sportCount = 0, sportMin = 0;
-  for (let i = 0; i < 7; i++){ const d = new Date(now); d.setDate(d.getDate() - i); const s = hSessions[localDateStr(d)]; if (s && s.endTs){ sportCount++; sportMin += Math.round((s.endTs - s.startTs) / 60000); } }
+  for (let i = 0; i < 7; i++){ const d = new Date(now); d.setDate(d.getDate() - i); const s = hSessions[localDateStr(d)]; if (s && s.endTs){ sportCount++; sportMin += Math.round((s.endTs - s.startTs - (s.pausedTotal||0)) / 60000); } }
   const shape = calcShape();
   const bodyFormHtml = BODY_GROUPS.map(g => `<div class="body-group-title">${esc(g.title)}</div>${g.fields.map(f => `<div class="dim-row"><span class="lb">${esc(f.label)}</span><input type="number" step="${f.step}" data-bkey="${f.key}" value="${body[f.key] ?? ''}" style="width:100px;text-align:right"><span class="unit">${esc(f.unit)}</span></div>`).join('')}`).join('');
   return `<div class="stats" style="grid-template-columns:repeat(2,1fr)"><div class="stat"><div class="v">${w.toFixed(1)}</div><div class="k">体重 kg</div><div class="d">${dw === null ? '—' : (dw > 0.05 ? '↑' + dw.toFixed(1) : dw < -0.05 ? '↓' + Math.abs(dw).toFixed(1) : '持平')}</div></div><div class="stat"><div class="v">${bf.toFixed(1)}%</div><div class="k">体脂率</div><div class="d">—</div></div></div><div class="card" style="background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border:0;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;margin-bottom:8px;">体型识别</div><div style="font-size:19px;font-weight:750;margin-bottom:6px;">${shape.name}</div><div style="font-size:13px;opacity:.92;">${shape.desc}</div></div><div class="card" style="border:2px solid var(--purple);background:#FBFAFF;"><div class="row-between" style="margin-bottom:8px;"><div style="font-size:14px;font-weight:800;color:var(--purple);">📐 详细身材尺寸登记表</div><span style="font-size:11.5px;color:var(--sub)">按实际测量填写</span></div>${bodyFormHtml}<button class="btn-primary" data-act="saveBodyForm" style="margin-top:14px;background:linear-gradient(135deg,var(--purple),var(--purple2))">💾 保存身材尺寸</button></div><div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">📊 近 7 天概览</div><div class="kv"><span class="k">训练</span><span class="v">完成 <b>${sportCount}</b> 次 · 共 <b>${sportMin}</b> 分钟</span></div><div class="kv"><span class="k">当前计划</span><span class="v hl">${esc(plan.label)}</span></div></div>`;
@@ -2202,14 +2256,51 @@ async function jokeSection(){
   const body = state.jokeResults.map(r => { if (!r.ok) return `<div class="card" style="border-left:3px solid #dc2626;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div class="err-inline">❌ ${esc(r.error)}</div></div>`; const j = r.data; return `<div class="card" style="padding:14px;"><span class="src-tag">${r.icon} ${esc(r.label)}</span><div style="font-size:13.5px;line-height:1.85;color:#78350f;white-space:pre-wrap;background:linear-gradient(135deg,#fef3c7,#fde68a);padding:12px;border-radius:10px;border:1px solid #fbbf24;margin-top:4px;">${esc(j.text)}</div><div style="display:flex;gap:6px;margin-top:10px;"><button class="btn ghost" data-act="speak" data-text="${esc(j.text)}" data-lang="zh-CN">🔊 朗读</button></div></div>`; }).join('') || '<div class="tip-card">加载失败，点下面重试</div>';
   return `<div class="card" style="background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;border:0;"><div class="row-between" style="margin-bottom:10px;"><div style="font-size:11px;letter-spacing:1.5px;font-weight:750;opacity:.75;">😄 笑话</div><button class="link-btn" data-act="refreshJoke" style="color:#fff;opacity:.92;font-size:12.5px;">🔄 换一批</button></div><div style="font-size:19px;font-weight:750;">天聚 · 雷人笑话</div></div>${body}`;
 }
+
+// ★ 推荐：完全走 API
 async function recommendSection(){
   const catList = ['书','电影','播客','工具'];
-  const catIdx = DAY % catList.length;
-  const todayCat = state.recommendCat && catList.includes(state.recommendCat) ? state.recommendCat : catList[catIdx];
   const catEmoji = { '书':'📚','电影':'🎬','播客':'🎧','工具':'🛠️' };
-  if (!state.recData || state.recData.cat !== todayCat){ let data = SEED.RECOMMEND[todayCat] ? SEED.RECOMMEND[todayCat][DAY % SEED.RECOMMEND[todayCat].length] : null; state.recData = { cat: todayCat, item: data }; }
-  const r = state.recData && state.recData.item;
-  return `<div class="chips">${catList.map(c => `<button class="chip ${c===todayCat?'on':''}" data-act="recCat" data-cat="${esc(c)}">${catEmoji[c]} ${esc(c)}</button>`).join('')}</div>${r ? `<div class="card"><div class="row-between" style="margin-bottom:12px;"><span class="src-tag" style="margin-bottom:0;">${catEmoji[todayCat]} ${todayCat} · 今日推荐</span><span style="font-size:10.5px;color:var(--sub);">${todayStr()}</span></div><div style="display:flex;align-items:flex-start;gap:12px;"><div style="font-size:34px;line-height:1;flex-shrink:0;">${r.emoji||catEmoji[todayCat]}</div><div style="flex:1;min-width:0;"><div style="font-size:17px;font-weight:750;line-height:1.4;">${esc(r.name)}</div><div style="font-size:12.5px;color:var(--sub);margin-top:4px;">${esc(r.author||'')}</div></div></div><div style="font-size:13.5px;line-height:1.78;color:#3f4658;margin-top:13px;padding-top:13px;border-top:1px dashed #eceef4;">${esc(r.why||'')}</div></div>` : '<div class="tip-card">暂无推荐</div>'}`;
+  const todayCat = state.recommendCat || catList[DAY % catList.length];
+  const cacheKey = 'rec-' + todayCat + '-' + DAY;
+  let item = CacheStore.load(cacheKey);
+
+  if (!item){
+    try {
+      if (todayCat === '电影') item = await fetchRecommendMovie();
+      else if (todayCat === '书') item = await fetchRecommendBook();
+      else if (todayCat === '播客') item = await fetchRecommendPodcast();
+      else item = await fetchRecommendTool();
+      if (item) CacheStore.save(cacheKey, item);
+    } catch(e){ console.error('推荐抓取失败', e); }
+  }
+
+  const chips = `<div class="chips">${catList.map(c => `<button class="chip ${c===todayCat?'on':''}" data-act="recCat" data-cat="${esc(c)}">${catEmoji[c]} ${esc(c)}</button>`).join('')}</div>`;
+
+  if (!item){
+    return chips + `<div class="card" style="text-align:center;padding:32px 20px;">
+      <div style="font-size:32px;margin-bottom:10px;">📡</div>
+      <div style="font-size:14px;color:var(--sub);margin-bottom:14px;">推荐接口暂时不可用</div>
+      <button class="btn primary" data-act="refreshRec">🔄 重新抓取</button>
+    </div>`;
+  }
+
+  return chips + `<div class="card">
+    <div class="row-between" style="margin-bottom:12px;">
+      <span class="src-tag" style="margin-bottom:0;">${catEmoji[todayCat]} ${todayCat} · 今日推荐</span>
+      <span style="font-size:10.5px;color:var(--sub);">${todayStr()}</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+      ${item.cover ? `<img src="${esc(item.cover)}" style="width:70px;height:100px;object-fit:cover;border-radius:8px;flex-shrink:0;" alt="">` : `<div style="font-size:34px;line-height:1;flex-shrink:0;">${item.emoji||catEmoji[todayCat]}</div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:17px;font-weight:750;line-height:1.4;">${esc(item.name)}</div>
+        <div style="font-size:12.5px;color:var(--sub);margin-top:4px;">${esc(item.author||'')}</div>
+        ${item.rating ? `<div style="font-size:12.5px;color:#f59e0b;margin-top:6px;font-weight:650;">⭐ ${item.rating}</div>` : ''}
+      </div>
+    </div>
+    <div style="font-size:13.5px;line-height:1.78;color:#3f4658;margin-top:13px;padding-top:13px;border-top:1px dashed #eceef4;">${esc(item.why||'')}</div>
+    ${item.url ? `<button class="btn primary wide" style="margin-top:14px;" data-act="openNews" data-url="${esc(item.url)}">查看详情 →</button>` : ''}
+  </div>`;
 }
 
 function meView(){
@@ -2415,7 +2506,6 @@ function doExport(){
     toast('已导出：' + filename);
   } catch(err){ toast('导出失败：' + err.message); }
 }
-
 function doImport(){
   const input = document.createElement('input');
   input.type = 'file';
@@ -2436,21 +2526,14 @@ function doImport(){
   input.click();
   setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
 }
-
 function doImportConfirm(text){
   try {
     const raw = JSON.parse(text);
     let learn = null, health = null, rawTxList = null;
-    if (raw.learn || raw.health){
-      learn = raw.learn || null;
-      health = raw.health || null;
-    }
+    if (raw.learn || raw.health){ learn = raw.learn || null; health = raw.health || null; }
     else if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)){
       const src = raw.data;
-      const p = v => {
-        if (typeof v !== 'string') return v;
-        try { return JSON.parse(v); } catch(e){ return v; }
-      };
+      const p = v => { if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch(e){ return v; } };
       health = {
         body: p(src.app_body || src.body),
         suppLib: p(src.app_supplements || src.supplements || src.suppLib),
@@ -2469,12 +2552,8 @@ function doImportConfirm(text){
       };
       learn = {};
     }
-    else if (Array.isArray(raw)){
-      rawTxList = raw;
-    }
-    else {
-      toast('未识别的文件格式'); return;
-    }
+    else if (Array.isArray(raw)){ rawTxList = raw; }
+    else { toast('未识别的文件格式'); return; }
     let imported = 0;
     if (rawTxList){
       const list = rawTxList.filter(x => x && (x.amount !== undefined || x.date)).map(x => ({
@@ -2517,10 +2596,7 @@ function doImportConfirm(text){
         LS.set('app_h_transactions', transactions);
       }
       if (health.bodyHistory) saveBodyHistory(health.bodyHistory);
-      if (health.planStart){
-        LS.set('app_h_planStartDate', health.planStart);
-        PLAN_START = new Date(health.planStart + 'T00:00:00');
-      }
+      if (health.planStart){ LS.set('app_h_planStartDate', health.planStart); PLAN_START = new Date(health.planStart + 'T00:00:00'); }
       if (health.overrides) LS.set('app_h_planOverrides', health.overrides);
       if (health.todoStatus) saveTodoStatusMap(health.todoStatus);
       if (health.manualTodos) saveManualTodos(health.manualTodos);
@@ -2533,10 +2609,7 @@ function doImportConfirm(text){
     if (learn){
       if (learn.learned) LS.set('learned:'+DAY, learn.learned);
       if (learn.wordDeckMap) LS.set('word-deck-map', learn.wordDeckMap);
-      if (learn.schedule){
-        if (learn.schedule.english) LearnStore.setSchedule('english', learn.schedule.english);
-        if (learn.schedule.work) LearnStore.setSchedule('work', learn.schedule.work);
-      }
+      if (learn.schedule){ if (learn.schedule.english) LearnStore.setSchedule('english', learn.schedule.english); if (learn.schedule.work) LearnStore.setSchedule('work', learn.schedule.work); }
       if (learn.wrongBook) LS.set('wrong-book', learn.wrongBook);
       if (learn.streak) LS.set('streak', learn.streak);
       if (learn.aiHistory) LS.set('ai-history', learn.aiHistory);
@@ -2545,10 +2618,7 @@ function doImportConfirm(text){
     if (!imported){ toast('未识别的文件格式'); return; }
     toast('✓ 导入成功');
     setTimeout(() => location.reload(), 800);
-  } catch(err){
-    console.error(err);
-    toast('导入失败：' + (err.message || err));
-  }
+  } catch(err){ console.error(err); toast('导入失败：' + (err.message || err)); }
 }
 function clearAllData(){
   if (!confirm('确定清空？所有学习、健康数据将丢失。')) return;
@@ -2578,6 +2648,8 @@ view.addEventListener('click', async e => {
   const act = t.dataset.act;
 
   if (act === 'speak'){ e.stopPropagation(); toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
+  // ★ 单词 + 例句（间隔 3 秒）
+  if (act === 'speakWordScene'){ e.stopPropagation(); speakWordWithScene(t.dataset.word, t.dataset.scene, t); return; }
   if (act === 'copyText'){ copyText(t.dataset.text).then(ok => toast(ok?'已复制':'复制失败')); return; }
   if (act === 'openNews'){ openExternal(t.dataset.url); return; }
   if (act === 'openAI'){ openAIAssistant(); return; }
@@ -2639,7 +2711,18 @@ view.addEventListener('click', async e => {
   if (act === 'refreshJoke'){ state.jokeResults = []; CacheStore.save('joke-results', null); render({ keepScroll: true }); return; }
   if (act === 'refreshNews'){ state.newsResults = []; CacheStore.save('news-all', null); render({ keepScroll: true }); return; }
   if (act === 'togglePassage'){ state.passageHidden = !state.passageHidden; render({ keepScroll: true }); return; }
-  if (act === 'recCat'){ state.recommendCat = t.dataset.cat; state.recData = null; render({ keepScroll: true }); return; }
+  if (act === 'recCat'){
+    state.recommendCat = t.dataset.cat;
+    CacheStore.save('rec-' + t.dataset.cat + '-' + DAY, null);  // ★ 清缓存强制重抓
+    render({ keepScroll: true });
+    return;
+  }
+  if (act === 'refreshRec'){
+    const c = state.recommendCat || '书';
+    CacheStore.save('rec-' + c + '-' + DAY, null);
+    render({ keepScroll: true });
+    return;
+  }
   if (act === 'discoverSub'){ state.discoverSub = t.dataset.sub; render(); return; }
   if (act === 'startWeeklyTest'){ startWeeklyTest(); return; }
   if (act === 'startAllTest'){ startAllTest(); return; }
@@ -2736,13 +2819,33 @@ view.addEventListener('click', async e => {
     render(); return;
   }
 
+  // ★ 运动：开始 / 暂停 / 继续 / 结束 / 重置
   if (act === 'startSport'){
     const t0 = document.getElementById('sportStartTime');
     const label = (t0 && t0.value) || fmtTime(new Date());
     const [h, m] = label.split(':').map(Number);
     const d = new Date(); d.setHours(h, m, 0, 0);
-    saveSportSession({ startTs:d.getTime(), startLabel: label, endTs:null, sets:{} });
+    saveSportSession({ startTs:d.getTime(), startLabel: label, endTs:null, sets:{}, pausedTotal:0, pausedAt:null });
     toast('已开始打卡'); render(); return;
+  }
+  if (act === 'pauseSport'){
+    const s = getSportSession();
+    if (!s || s.endTs || s.pausedAt) return;
+    s.pausedAt = Date.now();
+    saveSportSession(s);
+    toast('已暂停');
+    render({ keepScroll: true });
+    return;
+  }
+  if (act === 'resumeSport'){
+    const s = getSportSession();
+    if (!s || !s.pausedAt) return;
+    s.pausedTotal = (s.pausedTotal || 0) + (Date.now() - s.pausedAt);
+    s.pausedAt = null;
+    saveSportSession(s);
+    toast('继续训练');
+    render({ keepScroll: true });
+    return;
   }
   if (act === 'endSport'){ const s = getSportSession(); if (!s) return; s.endTs = Date.now(); saveSportSession(s); render(); return; }
   if (act === 'resetSport'){ if (!confirm('重置今日打卡？')) return; saveSportSession(null); render(); return; }
@@ -2978,7 +3081,7 @@ sheet.addEventListener('click', async e => {
   if (act === 'removeProduct'){ const stepId = state.pickingSkinStep; if (stepId){ delete skinProducts[stepId]; saveSkinProducts(); } closeSheet(); render({ keepScroll: true }); return; }
 });
 
-// ★ 语音记账：调用原生 AndroidTTS.startRecognize（10 秒自动停，再点提前停）
+// ★ 语音记账：调用系统语音输入
 let _voiceTimerHandle = null;
 let _voiceActive = false;
 
@@ -2991,14 +3094,15 @@ function startVoiceRecord(){
   const mic = document.getElementById('micBtn');
   if (mic) mic.classList.add('listening');
   const hint = document.getElementById('micHint');
-  if (hint) hint.textContent = '正在聆听… 10 秒（再点麦克风可提前结束）';
+  if (hint) hint.textContent = '正在聆听…（系统界面说话后自动返回）';
+  // 因为用系统界面，计时器只是显示大概时间
   let left = 10;
   if (_voiceTimerHandle) clearInterval(_voiceTimerHandle);
   _voiceTimerHandle = setInterval(() => {
     left--;
     const h = document.getElementById('micHint');
-    if (h) h.textContent = `正在聆听… 还剩 ${left} 秒（再点麦克风可提前结束）`;
-    if (left <= 0) stopVoiceRecord();
+    if (h) h.textContent = `正在聆听… 还剩 ${left} 秒`;
+    if (left <= 0) { clearInterval(_voiceTimerHandle); _voiceTimerHandle = null; }
   }, 1000);
   try { AndroidTTS.startRecognize(10); }
   catch(e){ toast('启动失败：' + e.message); stopVoiceRecord(); }
@@ -3141,8 +3245,10 @@ function initWalkReminder(){
     const el = document.getElementById('sportTimer');
     if (el){
       const sess = getSportSession();
-      if (sess && !sess.endTs){
-        const total = Math.floor((Date.now() - sess.startTs) / 1000);
+      if (sess && !sess.endTs && !sess.pausedAt){
+        // ★ 计算净训练时长（扣掉暂停）
+        let elapsed = Date.now() - sess.startTs - (sess.pausedTotal || 0);
+        const total = Math.floor(elapsed / 1000);
         const h = Math.floor(total/3600), m = Math.floor((total%3600)/60), s = total%60;
         el.textContent = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
         const sc = document.getElementById('sportSetCount');
