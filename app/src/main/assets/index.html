@@ -438,10 +438,6 @@ function toast(msg){
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 1900);
 }
 
-// ════════════════════════════════════════════════════════════
-// ★ 英文 → 中文 免费翻译（MyMemory，无需 key，每天 5000 字）
-// 结果会缓存到 localStorage，同一个句子不会重复请求
-// ════════════════════════════════════════════════════════════
 async function translateToChinese(text){
   if (!text || !String(text).trim()) return '';
   const t = String(text).trim();
@@ -585,9 +581,9 @@ const HOLIDAYS = {
   '2026-01-01':'元旦','2026-02-17':'春节','2026-05-01':'劳动节','2026-06-01':'儿童节','2026-10-01':'国庆'
 };
 const EXPENSE_CATS = [
-  ['餐饮', /(餐饮|早餐|午餐|晚餐|吃|饭|餐|咖啡|奶茶|外卖|水果|零食|饮料|买菜)/],
+  ['餐饮', /(餐饮|早餐|午餐|晚餐|吃|饭|餐|咖啡|奶茶|外卖|水果|零食|饮料|买菜|蟹|面包)/],
   ['交通', /(交通|打车|公交|地铁|加油|停车|高铁|火车|机票|滴滴)/],
-  ['购物', /(购物|超市|商场|买|衣服|鞋|包|网购|淘宝|京东)/],
+  ['购物', /(购物|超市|商场|买|衣服|鞋|包|网购|淘宝|京东|背心|立减金)/],
   ['日用', /(日用|纸巾|洗发|沐浴|牙膏|清洁|家居|洗衣)/],
   ['娱乐', /(娱乐|电影|游戏|KTV|旅游|门票|聚会)/],
   ['医疗', /(医疗|医院|药|挂号|体检|诊所)/],
@@ -1167,6 +1163,53 @@ function getRangeTransactions(){
   if (state.exportRange === '3months'){ const c = new Date(); c.setMonth(c.getMonth() - 2); const cut = `${c.getFullYear()}-${pad(c.getMonth()+1)}-01`; return list.filter(t => t.date >= cut); }
   return list;
 }
+
+// ★★★ 新增：导出 Excel (.xls) —— 用 HTML 表格，Excel/WPS 都能打开 ★★★
+function exportExcel(){
+  const list = getRangeTransactions();
+  if (!list.length){ toast('所选时间范围内没有记录'); return; }
+  const escXml = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const rows = [['日期','时间','金额','类型','分类','备注']];
+  list.forEach(t => rows.push([
+    t.date, t.time, t.amount,
+    t.type === 'income' ? '收入' : '支出',
+    t.category, t.note
+  ]));
+  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+  html += '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>账单</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>';
+  html += '<body style="font-family:Microsoft YaHei,PingFang SC,sans-serif;">';
+  html += '<table border="1" style="border-collapse:collapse;">';
+  html += '<tr style="background:#4f46e5;color:#ffffff;font-weight:bold;">';
+  rows[0].forEach(h => { html += `<th style="padding:6px 14px;text-align:left;">${escXml(h)}</th>`; });
+  html += '</tr>';
+  rows.slice(1).forEach((r, i) => {
+    const bg = i % 2 === 0 ? '#ffffff' : '#f8f9fd';
+    html += `<tr style="background:${bg};">`;
+    r.forEach((c, j) => {
+      const align = j === 2 ? 'right' : 'left';
+      html += `<td style="padding:4px 12px;text-align:${align};">${escXml(c)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</table></body></html>';
+  const rangeLabel = { month:'本月', lastMonth:'上月', '3months':'近3月', all:'全部' }[state.exportRange];
+  const filename = `账单_${rangeLabel}_${todayStr()}.xls`;
+  if (window.AndroidFile && typeof AndroidFile.saveFile === 'function'){
+    try { AndroidFile.saveFile(html, filename, 'application/vnd.ms-excel'); return; }
+    catch(e){ console.error(e); }
+  }
+  try {
+    const blob = new Blob([html], { type:'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); try { URL.revokeObjectURL(url); } catch(e){} }, 200);
+    toast('已导出：' + filename);
+  } catch(err){ toast('导出失败：' + err.message); }
+}
+
 function exportCsv(){
   const list = getRangeTransactions();
   if (!list.length){ toast('所选时间范围内没有记录'); return; }
@@ -1189,6 +1232,7 @@ function exportCsv(){
     toast('已导出：' + filename);
   } catch(err){ toast('导出失败：' + err.message); }
 }
+
 function importTransactionsCsv(){
   const input = document.createElement('input');
   input.type = 'file';
@@ -1476,7 +1520,6 @@ function speakWordWithScene(word, scene, btn){
   if (wasPlaying) return;
   const seq = ++_speakSeq;
   if (btn) { btn.classList.add('playing'); _currentSpeakBtn = btn; }
-
   const doSpeak = (txt) => {
     if (window.AndroidTTS && typeof AndroidTTS.speak === 'function') AndroidTTS.speak(txt, 'en-US');
     else if (window.speechSynthesis){
@@ -1489,7 +1532,6 @@ function speakWordWithScene(word, scene, btn){
       _currentSpeakBtn = null;
     }
   };
-
   doSpeak(word);
   if (scene){
     setTimeout(() => {
@@ -2058,7 +2100,7 @@ function moneyExportPane(){
   const list = getRangeTransactions();
   const totalExp = list.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
   const totalInc = list.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
-  return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">选择时间范围</div><div class="chips" style="margin:0;flex-wrap:wrap;">${['month','lastMonth','3months','all'].map(r => `<span class="chip ${state.exportRange===r?'on':''}" data-act="setExportRange" data-range="${r}">${rangeLabel[r]}</span>`).join('')}</div><p class="tip" style="margin-top:10px;font-size:12px;color:var(--sub)">当前：${rangeLabel[state.exportRange]} · 共 ${list.length} 条记录</p></div><button class="btn-primary" data-act="exportCsv">📤 导出 CSV（会弹窗显示路径）</button><button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button><div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div><div style="font-size:12px;color:var(--sub);line-height:1.7">记录数：${list.length} 条<br>支出合计：¥ ${totalExp.toFixed(2)}<br>收入合计：¥ ${totalInc.toFixed(2)}</div></div>`;
+  return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">选择时间范围</div><div class="chips" style="margin:0;flex-wrap:wrap;">${['month','lastMonth','3months','all'].map(r => `<span class="chip ${state.exportRange===r?'on':''}" data-act="setExportRange" data-range="${r}">${rangeLabel[r]}</span>`).join('')}</div><p class="tip" style="margin-top:10px;font-size:12px;color:var(--sub)">当前：${rangeLabel[state.exportRange]} · 共 ${list.length} 条记录</p></div><button class="btn-primary" data-act="exportExcel" style="background:linear-gradient(135deg,#217346,#2ea85c)">📊 导出 Excel（.xls，可用 WPS/Excel 打开）</button><button class="btn-ghost-h" data-act="exportCsv" style="margin-top:8px">📄 导出 CSV（纯文本）</button><button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button><button class="btn-ghost-h" data-act="openDownloadFolder" style="margin-top:8px">📂 打开系统"下载"文件夹</button><div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div><div style="font-size:12px;color:var(--sub);line-height:1.7">记录数：${list.length} 条<br>支出合计：¥ ${totalExp.toFixed(2)}<br>收入合计：¥ ${totalInc.toFixed(2)}<br><br><b>提示：</b>点击上方"导出"按钮后，系统会弹窗显示文件名。文件保存在系统「下载」文件夹中，可点"打开系统'下载'文件夹"直接跳过去查看。</div></div>`;
 }
 function renderTxEditor(){
   const p = state.pendingTx;
@@ -2350,7 +2392,7 @@ function meView(){
     <div style="display:flex;align-items:baseline;gap:8px;padding:10px 4px;"><span style="font-size:22px;font-weight:850;color:var(--hot);min-width:52px;">${transactions.length}</span><span style="font-size:13px;color:#4b5265;font-weight:600;">笔记账记录</span></div>
   </div>
   <div class="card"><div class="sec-title" style="margin:0 0 12px;">🤖 AI 助手配置</div><select id="aiProvider" style="margin-bottom:10px;"><option value="none" ${AI.provider==='none'?'selected':''}>不启用</option><option value="deepseek" ${AI.provider==='deepseek'?'selected':''}>DeepSeek</option><option value="qwen" ${AI.provider==='qwen'?'selected':''}>通义千问</option><option value="zhipu" ${AI.provider==='zhipu'?'selected':''}>智谱 GLM</option></select><input type="password" id="aiKey" placeholder="sk-..." value="${esc(AI.apiKey)}"><button class="btn primary wide" style="margin-top:14px" data-act="saveAI">保存配置</button></div>
-  <div class="card"><div class="sec-title" style="margin:0 0 12px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON，会弹窗显示路径）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="importData">📥 导入（JSON）</button></div>
+  <div class="card"><div class="sec-title" style="margin:0 0 12px;">数据备份</div><button class="btn primary wide" data-act="exportData">📤 导出（JSON）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="importData">📥 导入（JSON）</button><button class="btn wide" style="background:#f1f2f9;color:#4b5265;margin-top:8px;" data-act="openDownloadFolder">📂 打开系统"下载"文件夹</button><p class="tip" style="margin-top:10px;font-size:11.5px;">导出时会弹窗显示文件名，文件会保存到系统「下载」文件夹，可点上面按钮跳转查看。</p></div>
   <div class="card" style="border:1px solid #fee2e2;"><div class="sec-title" style="margin:0 0 6px;color:#dc2626;">危险操作</div><button class="btn danger wide" data-act="clearData">🗑 清空本设备数据</button></div>
   <div class="foot-note">数据保存在本设备 · 请定期备份</div>`;
 }
@@ -2543,7 +2585,7 @@ function doExport(){
 function doImport(){
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json,application/json,text/plain,*/*';
+  input.accept = '*/*';
   input.style.position = 'fixed';
   input.style.left = '-9999px';
   input.style.top = '-9999px';
@@ -2650,7 +2692,7 @@ function doImportConfirm(text){
       imported++;
     }
     if (!imported){ toast('未识别的文件格式'); return; }
-    toast('✓ 导入成功');
+    toast('✓ 导入成功，正在刷新…');
     setTimeout(() => location.reload(), 800);
   } catch(err){ console.error(err); toast('导入失败：' + (err.message || err)); }
 }
@@ -2686,6 +2728,12 @@ view.addEventListener('click', async e => {
   if (act === 'copyText'){ copyText(t.dataset.text).then(ok => toast(ok?'已复制':'复制失败')); return; }
   if (act === 'openNews'){ openExternal(t.dataset.url); return; }
   if (act === 'openAI'){ openAIAssistant(); return; }
+  if (act === 'openDownloadFolder'){
+    if (window.AndroidFile && typeof AndroidFile.openDownloadFolder === 'function'){
+      try { AndroidFile.openDownloadFolder(); } catch(e){ toast('打开失败，请手动打开「文件管理」'); }
+    } else { toast('请手动打开「文件管理」APP →「下载」'); }
+    return;
+  }
   if (act === 'closeCenterTimer'){ finishWalkTimer(); return; }
   if (act === 'startRest'){ startRestTimer(t.dataset.code, parseInt(t.dataset.sec, 10)); return; }
   if (act === 'gotoBodyData'){ state.tab = 'life'; state.lifeSub = 'sport'; state.sportSub = 'body'; render(); return; }
@@ -2697,7 +2745,6 @@ view.addEventListener('click', async e => {
     render();
     return;
   }
-  // ★ 首页"新建待办"：先问日期，再问时间/事项/备注
   if (act === 'newTodoToday'){
     const dateInput = prompt('日期（YYYY-MM-DD，默认今天）', todayStr());
     if (dateInput === null) return;
@@ -2840,6 +2887,7 @@ view.addEventListener('click', async e => {
   }
   if (act === 'setExportRange'){ state.exportRange = t.dataset.range; HealthStore.save('exportRange', state.exportRange); render({ keepScroll: true }); return; }
   if (act === 'exportCsv'){ exportCsv(); return; }
+  if (act === 'exportExcel'){ exportExcel(); return; }
   if (act === 'importTxCsv'){ importTransactionsCsv(); return; }
 
   if (act === 'setTxType'){
