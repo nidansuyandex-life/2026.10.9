@@ -10,7 +10,6 @@ import android.os.Environment;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.MediaStore;
-import android.util.Base64;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -21,15 +20,7 @@ import androidx.core.app.NotificationCompat;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-import java.util.TimeZone;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
 public class JsBridge {
     private final MainActivity act;
@@ -76,6 +67,9 @@ public class JsBridge {
         recorder.stop();
     }
 
+    /** ★ MainActivity 需要用它来转发 onActivityResult */
+    public VoiceRecorder getVoiceRecorder() { return recorder; }
+
     private static String jsString(String s) {
         if (s == null) return "''";
         StringBuilder sb = new StringBuilder("'");
@@ -91,7 +85,7 @@ public class JsBridge {
         return sb.append("'").toString();
     }
 
-    // ============= 文件保存（导出） =============
+    // ============= 文件保存 =============
     @JavascriptInterface
     public void saveFile(String content, String filename, String mime) {
         try {
