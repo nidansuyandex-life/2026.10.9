@@ -141,15 +141,7 @@ public class MainActivity extends AppCompatActivity {
             }
             return;
         }
-
-        // ★ 语音识别结果转发
-        if (req == VoiceRecorder.REQ_VOICE) {
-            if (jsBridge != null && jsBridge.getVoiceRecorder() != null) {
-                jsBridge.getVoiceRecorder().handleActivityResult(req, res, data);
-            }
-            return;
-        }
-
+        // ★ 语音识别不再走 onActivityResult（讯飞 WebSocket 直接回调）
         super.onActivityResult(req, res, data);
     }
 
