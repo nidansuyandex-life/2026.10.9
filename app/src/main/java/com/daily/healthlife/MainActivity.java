@@ -77,16 +77,29 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> request.grant(request.getResources()));
             }
 
+            // ★ 修复：改为手动构造 Intent，兼容所有文件管理器
             @Override
             public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb,
                                              FileChooserParams params) {
                 if (filePathCallback != null) filePathCallback.onReceiveValue(null);
                 filePathCallback = cb;
                 try {
-                    Intent i = params.createIntent();
+                    Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
-                    startActivityForResult(i, FILE_CHOOSER_CODE);
+                    i.setType("*/*");
+                    // 附加 accept 类型（如果 HTML 给了）
+                    String[] accept = params.getAcceptTypes();
+                    if (accept != null && accept.length > 0
+                            && accept[0] != null && !accept[0].isEmpty()) {
+                        // 只取第一个类型，太多反而被文件管理器忽略
+                        String t = accept[0].split(",")[0].trim();
+                        if (!t.isEmpty() && !"*".equals(t)) i.setType(t);
+                    }
+                    i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+                    startActivityForResult(Intent.createChooser(i, "选择文件"),
+                            FILE_CHOOSER_CODE);
                 } catch (Exception e) {
+                    Log.e("WV", "onShowFileChooser 失败", e);
                     filePathCallback = null;
                     return false;
                 }
@@ -141,7 +154,6 @@ public class MainActivity extends AppCompatActivity {
             }
             return;
         }
-        // ★ 语音识别不再走 onActivityResult（讯飞 WebSocket 直接回调）
         super.onActivityResult(req, res, data);
     }
 
