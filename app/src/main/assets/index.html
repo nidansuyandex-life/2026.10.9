@@ -338,6 +338,12 @@ select,input[type=text],input[type=password]{width:100%;border:1px solid #e6e8f0
 .center-timer .actions button{flex:1;border:0;font-family:inherit;font-size:14px;font-weight:600;padding:12px;border-radius:12px;cursor:pointer;}
 .center-timer .actions .btn-skip{background:#f1f2f9;color:#4b5265;}
 .center-timer .actions .btn-ok{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;}
+.import-option{padding:14px 16px;border:1.5px solid #e6e8f0;border-radius:14px;cursor:pointer;margin-bottom:10px;background:#fff;transition:.15s;}
+.import-option:active{transform:scale(.98);background:#f8f9fd;}
+.import-option.primary{border-color:var(--brand);background:linear-gradient(135deg,#eef0ff,#f6f0ff);}
+.import-option .io-title{font-size:14px;font-weight:750;margin-bottom:4px;}
+.import-option .io-desc{font-size:12px;color:var(--sub);line-height:1.5;}
+.import-option.primary .io-title{color:var(--brand);}
 </style>
 </head>
 <body>
@@ -1164,7 +1170,6 @@ function getRangeTransactions(){
   return list;
 }
 
-// ★★★ 新增：导出 Excel (.xls) —— 用 HTML 表格，Excel/WPS 都能打开 ★★★
 function exportExcel(){
   const list = getRangeTransactions();
   if (!list.length){ toast('所选时间范围内没有记录'); return; }
@@ -1236,7 +1241,7 @@ function exportCsv(){
 function importTransactionsCsv(){
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.csv,text/csv,text/comma-separated-values';
+  input.accept = '.csv,.xls,.xlsx,.txt,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*';
   input.style.position = 'fixed';
   input.style.left = '-9999px';
   input.style.top = '-9999px';
@@ -1246,63 +1251,221 @@ function importTransactionsCsv(){
   input.click();
   setTimeout(() => { try { document.body.removeChild(input); } catch(e){} }, 60000);
 }
-function doImportCsv(file){
-  const reader = new FileReader();
-  reader.onload = function(ev){
-    try {
-      const raw = ev.target.result.replace(/^\ufeff/, '');
-      const lines = raw.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) { toast('CSV 文件为空或格式不正确'); return; }
-      const parseCsvLine = (line) => {
-        const result = []; let cur = '', inQuote = false;
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          if (inQuote) {
-            if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
-            else if (ch === '"') inQuote = false;
-            else cur += ch;
-          } else {
-            if (ch === '"') inQuote = true;
-            else if (ch === ',') { result.push(cur); cur = ''; }
-            else cur += ch;
-          }
-        }
-        result.push(cur); return result;
-      };
-      const header = parseCsvLine(lines[0]);
-      const idxDate   = header.findIndex(h => h.includes('日期') || /date/i.test(h));
-      const idxTime   = header.findIndex(h => h.includes('时间') || /time/i.test(h));
-      const idxAmount = header.findIndex(h => h.includes('金额') || /amount/i.test(h));
-      const idxType   = header.findIndex(h => h.includes('类型') || /type/i.test(h));
-      const idxCat    = header.findIndex(h => h.includes('分类') || /category/i.test(h));
-      const idxNote   = header.findIndex(h => h.includes('备注') || /note/i.test(h));
-      if (idxDate < 0 || idxAmount < 0) { toast('CSV 需至少含"日期"和"金额"列'); return; }
-      const existing = new Set(transactions.map(t => `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note}`));
-      let added = 0, skipped = 0;
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCsvLine(lines[i]);
-        const date = (cols[idxDate] || '').trim();
-        const amount = parseFloat((cols[idxAmount] || '').trim());
-        if (!date || isNaN(amount)) { skipped++; continue; }
-        const time = idxTime >= 0 && (cols[idxTime] || '').trim() ? (cols[idxTime] || '').trim() : fmtTime(new Date());
-        const typeStr = idxType >= 0 ? (cols[idxType] || '').trim() : '支出';
-        const type = (typeStr === '收入' || typeStr === 'income') ? 'income' : 'expense';
-        const category = idxCat >= 0 && (cols[idxCat] || '').trim() ? (cols[idxCat] || '').trim() : (type === 'income' ? '其他收入' : '其他');
-        const note = idxNote >= 0 ? (cols[idxNote] || '').trim() : '';
-        const sig = `${date}|${time}|${amount}|${type}|${category}|${note}`;
-        if (existing.has(sig)) { skipped++; continue; }
-        transactions.unshift({ id: Date.now() + Math.floor(Math.random()*1000) + i, date, time, amount, category, note, type });
-        existing.add(sig); added++;
+
+async function ensureSheetJS(){
+  if (window.XLSX) return window.XLSX;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error('无法加载 Excel 解析库（需要联网一次）'));
+    document.head.appendChild(s);
+  });
+}
+
+function parseCsvText(text){
+  text = String(text || '').replace(/^\ufeff/, '');
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  const rows = [];
+  for (const line of lines){
+    const cells = []; let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++){
+      const ch = line[i];
+      if (inQuote){
+        if (ch === '"' && line[i+1] === '"'){ cur += '"'; i++; }
+        else if (ch === '"') inQuote = false;
+        else cur += ch;
+      } else {
+        if (ch === '"') inQuote = true;
+        else if (ch === ',') { cells.push(cur); cur = ''; }
+        else cur += ch;
       }
-      if (added > 0){
-        state.transactions = transactions;
-        LS.set('app_h_transactions', transactions);
-        render();
-        toast(`✓ 新增 ${added} 条，跳过重复 ${skipped} 条`);
-      } else { toast(`没有新增记录（跳过重复 ${skipped} 条）`); }
-    } catch (err) { console.error(err); toast('导入失败：' + (err.message||'未知')); }
+    }
+    cells.push(cur);
+    rows.push(cells);
+  }
+  return rows;
+}
+
+function parseHtmlTable(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) throw new Error('HTML 中未找到表格');
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('td, th').forEach(td => cells.push(td.textContent.trim()));
+    if (cells.some(c => c.length)) rows.push(cells);
+  });
+  return rows;
+}
+
+async function parseRealExcel(file){
+  const XLSX = await ensureSheetJS();
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error('Excel 中未找到工作表');
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  return rows.map(r => r.map(c => String(c == null ? '' : c).trim()));
+}
+
+async function doImportCsv(file){
+  const name = (file.name || '').toLowerCase();
+  try {
+    let rows = null;
+    if (name.endsWith('.csv') || name.endsWith('.txt')){
+      const text = await file.text();
+      rows = parseCsvText(text);
+    } else if (name.endsWith('.xlsx')){
+      rows = await parseRealExcel(file);
+    } else if (name.endsWith('.xls')){
+      const buf = await file.arrayBuffer();
+      const head = new Uint8Array(buf.slice(0, 8));
+      const isOle2 = head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0;
+      const isZip  = head[0] === 0x50 && head[1] === 0x4B && head[2] === 0x03 && head[3] === 0x04;
+      if (isOle2 || isZip){
+        rows = await parseRealExcel(file);
+      } else {
+        const text = new TextDecoder('utf-8').decode(buf);
+        rows = parseHtmlTable(text);
+      }
+    } else {
+      const text = await file.text();
+      if (/<table|<html/i.test(text)) rows = parseHtmlTable(text);
+      else rows = parseCsvText(text);
+    }
+    if (!rows || rows.length < 2) throw new Error('文件为空或表头缺失');
+    importRowsToTx(rows);
+  } catch(err){
+    console.error('导入失败', err);
+    toast('导入失败：' + (err.message || err));
+  }
+}
+
+function findCols(header){
+  const h = header.map(x => String(x || '').trim());
+  const find = (...keys) => {
+    for (const k of keys){
+      const i = h.findIndex(x => x === k || x.includes(k) || new RegExp(k, 'i').test(x));
+      if (i >= 0) return i;
+    }
+    return -1;
   };
-  reader.readAsText(file, 'UTF-8');
+  return {
+    date:   find('日期', 'date', '时间戳'),
+    time:   find('时间', 'time'),
+    amount: find('金额', 'amount', 'money'),
+    type:   find('类型', 'type'),
+    cat:    find('分类', 'category', '类别'),
+    note:   find('备注', 'note', '说明', '备注说明')
+  };
+}
+
+async function importRowsToTx(rows){
+  const header = rows[0];
+  const cols = findCols(header);
+  if (cols.date < 0 || cols.amount < 0){
+    toast('无法识别"日期"或"金额"列，请检查表头');
+    return;
+  }
+  const parsed = [];
+  for (let i = 1; i < rows.length; i++){
+    const r = rows[i];
+    if (!r || !r.length) continue;
+    const dateRaw = (r[cols.date] || '').trim();
+    if (!dateRaw) continue;
+    let date = dateRaw;
+    if (/^\d{5}$/.test(dateRaw)){
+      const dt = new Date(Date.UTC(1899, 11, 30) + parseInt(dateRaw, 10) * 86400000);
+      date = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth()+1)}-${pad(dt.getUTCDate())}`;
+    } else {
+      const m = dateRaw.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+      if (m) date = `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+    }
+    const amtRaw = String(r[cols.amount] || '').replace(/[^\d.\-]/g, '');
+    const amount = parseFloat(amtRaw);
+    if (isNaN(amount)) continue;
+    const time = cols.time >= 0 ? (r[cols.time] || '').trim() || '12:00' : '12:00';
+    const typeRaw = cols.type >= 0 ? (r[cols.type] || '').trim() : '支出';
+    const type = (typeRaw === '收入' || /income/i.test(typeRaw)) ? 'income' : 'expense';
+    const catRaw = cols.cat >= 0 ? (r[cols.cat] || '').trim() : '';
+    const note = cols.note >= 0 ? (r[cols.note] || '').trim() : '';
+    let category = catRaw;
+    if (!category){
+      const guess = parseTransactionText(note || dateRaw);
+      category = guess.category || (type === 'income' ? '其他收入' : '其他');
+    }
+    parsed.push({ date, time, amount, type, category, note });
+  }
+  if (!parsed.length){ toast('未解析到任何有效记录'); return; }
+  const sig = t => `${t.date}|${t.time}|${t.amount}|${t.type}|${t.category}|${t.note || ''}`;
+  const existingSet = new Set(transactions.map(sig));
+  const conflictRows = parsed.filter(t => existingSet.has(sig(t)));
+  const newRows = parsed.filter(t => !existingSet.has(sig(t)));
+  const total = parsed.length;
+  const newCount = newRows.length;
+  const dupCount = conflictRows.length;
+  openSheet(`
+    <div class="sheet-head">
+      <div class="sheet-emoji">📥</div>
+      <div style="flex:1;min-width:0;">
+        <h2>导入预览</h2>
+        <div class="muted">共解析到 <b>${total}</b> 条记录</div>
+      </div>
+      <button class="link-btn" data-act="closeSheet">关闭</button>
+    </div>
+    <div style="margin-top:14px;">
+      <div style="background:#f8f9fd;border-radius:14px;padding:14px;font-size:13px;line-height:1.75;margin-bottom:14px;">
+        可新增：<b style="color:var(--accent);">${newCount}</b> 条<br>
+        ${dupCount > 0 ? `与现有账本相同：<b style="color:var(--warn);">${dupCount}</b> 条<br>` : ''}
+      </div>
+      ${dupCount > 0 ? `
+        <div class="import-option primary" data-act="confirmImportTx" data-mode="dedupe">
+          <div class="io-title">✓ 跳过重复，只导入 ${newCount} 条</div>
+          <div class="io-desc">已存在的相同记录不重复加入（推荐）</div>
+        </div>
+        <div class="import-option" data-act="confirmImportTx" data-mode="all">
+          <div class="io-title">全部导入 ${total} 条（保留所有）</div>
+          <div class="io-desc">即使和现有记录完全相同也照常加入，会出现重复条目</div>
+        </div>
+      ` : `
+        <div class="import-option primary" data-act="confirmImportTx" data-mode="all">
+          <div class="io-title">✓ 全部导入 ${total} 条</div>
+          <div class="io-desc">未检测到重复记录</div>
+        </div>
+      `}
+      <div class="import-option" data-act="closeSheet">
+        <div class="io-title">✕ 取消</div>
+        <div class="io-desc">不导入任何内容</div>
+      </div>
+    </div>
+  `);
+  state._pendingImport = { parsed, newRows };
+}
+
+function confirmImportTx(mode){
+  const p = state._pendingImport;
+  if (!p){ closeSheet(); return; }
+  const { parsed, newRows } = p;
+  const toAdd = mode === 'dedupe' ? newRows : parsed;
+  state._pendingImport = null;
+  closeSheet();
+  if (!toAdd.length){ toast('没有要导入的记录'); return; }
+  const baseId = Date.now();
+  toAdd.forEach((t, i) => {
+    transactions.unshift({
+      id: baseId + i,
+      date: t.date, time: t.time, amount: t.amount,
+      type: t.type, category: t.category, note: t.note
+    });
+  });
+  transactions.sort((a, b) => (b.date + (b.time || '00:00')).localeCompare(a.date + (a.time || '00:00')));
+  state.transactions = transactions;
+  LS.set('app_h_transactions', transactions);
+  render();
+  const dupMsg = mode === 'dedupe' ? `（跳过重复 ${parsed.length - newRows.length} 条）` : '';
+  toast(`✓ 导入成功：${toAdd.length} 条${dupMsg}`);
 }
 
 const KnowledgeSource = {
@@ -1633,7 +1796,8 @@ const state = {
   pendingTx: null,
   calendarData: {},
   profileDraft: { ...profile },
-  pickingSkinStep: null
+  pickingSkinStep: null,
+  _pendingImport: null
 };
 
 const view = document.getElementById('view');
@@ -2050,7 +2214,7 @@ function calMonthPane(){
   const dt = new Date(state.selectedDate + 'T00:00:00');
   const holiday = HOLIDAYS[state.selectedDate];
   const dayTl = dayList.length ? dayList.map(it => { const payload = encodeURIComponent(JSON.stringify({ date: state.selectedDate, time: it.time, title: it.title })); return `<div class="tl-item ${it.done ? 'done' : ''}"><div style="display:flex;gap:10px;align-items:flex-start"><span class="check ${it.done ? 'done' : ''}" data-toggle-todo="${payload}"></span><div style="flex:1" data-toggle-todo="${payload}"><div class="tl-time">${it.time}</div><div class="tl-title">${esc(it.title)}</div><div class="tl-desc">${esc(it.desc || '')}</div></div>${it.manual ? `<button class="del-tx" data-del-todo="${payload}" style="margin-top:2px">✕</button>` : ''}</div></div>`; }).join('') : '<p class="tip" style="color:#8A90A2">这一天暂无事项记录。</p>';
-  return `<div class="card"><div class="cal-head"><span class="nav" data-act="prevMonth">‹</span><div class="m">${y} 年 ${m + 1} 月</div><span class="nav" data-act="nextMonth">›</span></div><div style="text-align:center;margin-bottom:12px"><button class="mini-add" data-act="backToToday" style="padding:6px 16px">↩ 回到今天</button></div><div class="cal-week"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div><div class="cal-grid">${gridHtml}</div></div><div class="card"><div style="margin-bottom:10px;"><div style="font-size:14px;font-weight:700;">${dt.getMonth()+1} 月 ${dt.getDate()} 日${holiday ? ' · ' + holiday : ''}</div></div><div class="tl">${dayTl}</div></div>`;
+  return `<div class="card"><div class="cal-head"><span class="nav" data-act="prevMonth">‹</span><div class="m">${y} 年 ${m + 1} 月</div><span class="nav" data-act="nextMonth">›</span></div><div style="text-align:center;margin-bottom:12px"><button class="mini-add" data-act="backToToday" style="padding:6px 16px">↩ 回到今天</button></div><div class="cal-week"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div><div class="cal-grid">${gridHtml}</div></div><div class="card"><div class="row-between" style="margin-bottom:10px;"><div style="font-size:14px;font-weight:700;">${dt.getMonth()+1} 月 ${dt.getDate()} 日${holiday ? ' · ' + holiday : ''}</div><button class="mini-add" data-act="newTodo">＋ 新建待办</button></div><div class="tl">${dayTl}</div></div>`;
 }
 function calUndonePane(){
   const today = todayStr();
@@ -2100,7 +2264,7 @@ function moneyExportPane(){
   const list = getRangeTransactions();
   const totalExp = list.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
   const totalInc = list.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
-  return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">选择时间范围</div><div class="chips" style="margin:0;flex-wrap:wrap;">${['month','lastMonth','3months','all'].map(r => `<span class="chip ${state.exportRange===r?'on':''}" data-act="setExportRange" data-range="${r}">${rangeLabel[r]}</span>`).join('')}</div><p class="tip" style="margin-top:10px;font-size:12px;color:var(--sub)">当前：${rangeLabel[state.exportRange]} · 共 ${list.length} 条记录</p></div><button class="btn-primary" data-act="exportExcel" style="background:linear-gradient(135deg,#217346,#2ea85c)">📊 导出 Excel（.xls，可用 WPS/Excel 打开）</button><button class="btn-ghost-h" data-act="exportCsv" style="margin-top:8px">📄 导出 CSV（纯文本）</button><button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入 CSV（合并到账本）</button><button class="btn-ghost-h" data-act="openDownloadFolder" style="margin-top:8px">📂 打开系统"下载"文件夹</button><div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div><div style="font-size:12px;color:var(--sub);line-height:1.7">记录数：${list.length} 条<br>支出合计：¥ ${totalExp.toFixed(2)}<br>收入合计：¥ ${totalInc.toFixed(2)}<br><br><b>提示：</b>点击上方"导出"按钮后，系统会弹窗显示文件名。文件保存在系统「下载」文件夹中，可点"打开系统'下载'文件夹"直接跳过去查看。</div></div>`;
+  return `<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">选择时间范围</div><div class="chips" style="margin:0;flex-wrap:wrap;">${['month','lastMonth','3months','all'].map(r => `<span class="chip ${state.exportRange===r?'on':''}" data-act="setExportRange" data-range="${r}">${rangeLabel[r]}</span>`).join('')}</div><p class="tip" style="margin-top:10px;font-size:12px;color:var(--sub)">当前：${rangeLabel[state.exportRange]} · 共 ${list.length} 条记录</p></div><button class="btn-primary" data-act="exportExcel" style="background:linear-gradient(135deg,#217346,#2ea85c)">📊 导出 Excel（.xls，可用 WPS/Excel 打开）</button><button class="btn-ghost-h" data-act="exportCsv" style="margin-top:8px">📄 导出 CSV（纯文本）</button><button class="btn-ghost-h" data-act="importTxCsv" style="margin-top:8px">📥 导入账单（支持 CSV / Excel .xls / .xlsx）</button><button class="btn-ghost-h" data-act="openDownloadFolder" style="margin-top:8px">📂 打开系统"下载"文件夹</button><div class="card" style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">导出预览 <span class="muted" style="color:var(--sub);font-weight:500;font-size:11.5px">${list.length} 条</span></div><div style="font-size:12px;color:var(--sub);line-height:1.7">记录数：${list.length} 条<br>支出合计：¥ ${totalExp.toFixed(2)}<br>收入合计：¥ ${totalInc.toFixed(2)}<br><br><b>导入支持：</b>CSV / Excel .xls / .xlsx，会弹窗让您确认导入方式和跳过重复。</div></div>`;
 }
 function renderTxEditor(){
   const p = state.pendingTx;
@@ -2585,7 +2749,7 @@ function doExport(){
 function doImport(){
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '*/*';
+  input.accept = '.json,application/json,text/plain,*/*';
   input.style.position = 'fixed';
   input.style.left = '-9999px';
   input.style.top = '-9999px';
@@ -2745,6 +2909,7 @@ view.addEventListener('click', async e => {
     render();
     return;
   }
+  // ★ 首页"新建待办"
   if (act === 'newTodoToday'){
     const dateInput = prompt('日期（YYYY-MM-DD，默认今天）', todayStr());
     if (dateInput === null) return;
@@ -2760,6 +2925,30 @@ view.addEventListener('click', async e => {
     if (!saved[date]) saved[date] = [];
     saved[date].push({ time: (time||'09:00').trim(), title: title.trim(), desc: (desc||'').trim(), done:false });
     saveManualTodos(saved);
+    buildCalendarFromPlans();
+    toast('已添加 ' + date + ' 的待办');
+    render({ keepScroll: true });
+    return;
+  }
+  // ★ 日历里的"新建待办"：默认用当前选中日期
+  if (act === 'newTodo'){
+    const defaultDate = state.selectedDate || todayStr();
+    const dateInput = prompt('日期（YYYY-MM-DD）', defaultDate);
+    if (dateInput === null) return;
+    const date = (dateInput || '').trim() || defaultDate;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)){ toast('日期格式应为 YYYY-MM-DD'); return; }
+    const time = prompt('时间（如 09:00）', '09:00');
+    if (time === null) return;
+    const title = prompt('事项');
+    if (!title || !title.trim()) return;
+    const desc = prompt('备注（可留空）', '');
+    if (desc === null) return;
+    const saved = getManualTodos();
+    if (!saved[date]) saved[date] = [];
+    saved[date].push({ time: (time||'09:00').trim(), title: title.trim(), desc: (desc||'').trim(), done:false });
+    saveManualTodos(saved);
+    state.selectedDate = date;
+    HealthStore.save('selectedDate', state.selectedDate);
     buildCalendarFromPlans();
     toast('已添加 ' + date + ' 的待办');
     render({ keepScroll: true });
@@ -2889,6 +3078,7 @@ view.addEventListener('click', async e => {
   if (act === 'exportCsv'){ exportCsv(); return; }
   if (act === 'exportExcel'){ exportExcel(); return; }
   if (act === 'importTxCsv'){ importTransactionsCsv(); return; }
+  if (act === 'confirmImportTx'){ confirmImportTx(t.dataset.mode); return; }
 
   if (act === 'setTxType'){
     if (!state.pendingTx) return;
@@ -3158,6 +3348,7 @@ sheet.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const act = t.dataset.act;
   if (act === 'closeSheet'){ closeSheet(); return; }
+  if (act === 'confirmImportTx'){ confirmImportTx(t.dataset.mode); return; }
   if (act === 'reviewSpeak'){ toggleSpeak(t.dataset.text, t.dataset.lang||'en-US', t); return; }
   if (act === 'reviewSubmit'){ submitReviewAnswer(); return; }
   if (act === 'rate'){ rateAndNext(t.dataset.rating); return; }
