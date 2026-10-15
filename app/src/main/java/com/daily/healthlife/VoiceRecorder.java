@@ -33,7 +33,7 @@ import okhttp3.WebSocketListener;
 public class VoiceRecorder {
 
     // ═══════════════════════════════════════════════════════════
-    //  讯飞语音听写（流式版）凭证 —— 已填入正确的值
+    //  讯飞语音听写（流式版）凭证
     // ═══════════════════════════════════════════════════════════
     private static final String APPID      = "4c627b59";
     private static final String API_KEY    = "2fbffaacd145309be7c024db99e9c7ef";
@@ -44,7 +44,7 @@ public class VoiceRecorder {
     private static final String PATH        = "/v2/iat";
     private static final int    SAMPLE_RATE = 16000;
 
-    /** MainActivity 用到这个常量 */
+    /** MainActivity 用到这个常量（保留，不要删） */
     public static final int REQ_VOICE = 2001;
 
     public interface Callback {
@@ -58,10 +58,15 @@ public class VoiceRecorder {
     private AudioRecord audioRecord;
     private volatile boolean recording = false;
     private Thread recordThread;
-    private OkHttpClient client;
+    private final OkHttpClient client;
     private final StringBuilder resultBuilder = new StringBuilder();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private Runnable timeoutRunnable;
+
+    private Runnable timeoutRunnable;         // 录音时长到达时触发 stop()
+    private Runnable forceDeliverRunnable;    // 发送 status=2 后的兜底交付
+
+    private volatile boolean ended = false;             // stop() 是否已被调用过
+    private volatile boolean resultDelivered = false;   // 是否已交付结果
 
     public VoiceRecorder(Context ctx) {
         this.ctx = ctx;
@@ -72,9 +77,13 @@ public class VoiceRecorder {
     }
 
     public void start(int durationSec, Callback cb) {
-        stop();
+        // 彻底清理上一轮（不发送 status=2，直接 cancel）
+        hardStop();
+
         this.callback = cb;
         this.resultBuilder.setLength(0);
+        this.ended = false;
+        this.resultDelivered = false;
 
         if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -84,7 +93,6 @@ public class VoiceRecorder {
 
         try {
             String url = buildAuthUrl();
-            Log.d("VoiceRecorder", "connecting...");
             Request request = new Request.Builder().url(url).build();
 
             webSocket = client.newWebSocket(request, new WebSocketListener() {
@@ -108,10 +116,17 @@ public class VoiceRecorder {
                 @Override
                 public void onFailure(WebSocket ws, Throwable t, Response response) {
                     Log.e("VoiceRecorder", "WebSocket 失败", t);
+                    if (resultDelivered) return;
                     String msg = t.getMessage();
                     if (response != null) msg = "HTTP " + response.code();
-                    if (callback != null) callback.onError("语音服务连接失败：" + msg);
-                    stop();
+                    String partial = resultBuilder.toString().trim();
+                    if (partial.length() > 0) {
+                        deliverResult();
+                    } else {
+                        resultDelivered = true;
+                        if (callback != null) callback.onError("语音服务连接失败：" + msg);
+                        hardStop();
+                    }
                 }
 
                 @Override
@@ -135,7 +150,9 @@ public class VoiceRecorder {
             business.put("domain", "iat");
             business.put("accent", "mandarin");
             business.put("vad_eos", 3000);
-            business.put("dwa", "wpgs");
+            // ★★★ 关键修改：不再设置 dwa=wpgs ★★★
+            //   不启用动态修正，服务端返回简单累加结果，
+            //   不需要客户端做 rpl 替换，就不会出现"重复/镜像"问题。
 
             JSONObject data = new JSONObject();
             data.put("status", 0);
@@ -165,13 +182,13 @@ public class VoiceRecorder {
                     AudioFormat.ENCODING_PCM_16BIT, minBuf * 4);
         } catch (Exception e) {
             if (callback != null) callback.onError("无法打开麦克风：" + e.getMessage());
-            stop();
+            hardStop();
             return;
         }
 
         if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
             if (callback != null) callback.onError("麦克风初始化失败");
-            stop();
+            hardStop();
             return;
         }
 
@@ -184,9 +201,7 @@ public class VoiceRecorder {
                 int n;
                 try {
                     n = audioRecord.read(buffer, 0, buffer.length);
-                } catch (Exception e) {
-                    break;
-                }
+                } catch (Exception e) { break; }
                 if (n > 0 && socket != null) {
                     try {
                         String b64 = Base64.encodeToString(buffer, 0, n, Base64.NO_WRAP);
@@ -195,13 +210,10 @@ public class VoiceRecorder {
                         data.put("format", "audio/L16;rate=16000");
                         data.put("encoding", "raw");
                         data.put("audio", b64);
-
                         JSONObject frame = new JSONObject();
                         frame.put("data", data);
                         socket.send(frame.toString());
-                    } catch (Exception e) {
-                        Log.e("VoiceRecorder", "发送音频出错", e);
-                    }
+                    } catch (Exception e) { /* 忽略 */ }
                 }
             }
         }, "audio-record-thread");
@@ -215,8 +227,15 @@ public class VoiceRecorder {
             if (code != 0) {
                 String msg = obj.optString("message", "未知");
                 Log.e("VoiceRecorder", "识别错误 code=" + code + " " + msg);
-                if (callback != null) callback.onError("识别错误 code=" + code);
-                stop();
+                if (resultDelivered) return;
+                String partial = resultBuilder.toString().trim();
+                if (partial.length() > 0) {
+                    deliverResult();
+                } else {
+                    resultDelivered = true;
+                    if (callback != null) callback.onError("识别错误 code=" + code);
+                    hardStop();
+                }
                 return;
             }
 
@@ -226,79 +245,129 @@ public class VoiceRecorder {
             JSONObject result = data.optJSONObject("result");
             if (result != null) {
                 JSONArray ws = result.optJSONArray("ws");
-                StringBuilder piece = new StringBuilder();
                 if (ws != null) {
                     for (int i = 0; i < ws.length(); i++) {
                         JSONObject w = ws.getJSONObject(i);
                         JSONArray cw = w.optJSONArray("cw");
                         if (cw != null && cw.length() > 0) {
-                            piece.append(cw.getJSONObject(0).optString("w"));
+                            // ★ 简单累加，不做 rpl 替换
+                            resultBuilder.append(cw.getJSONObject(0).optString("w"));
                         }
                     }
-                }
-
-                String pgs = result.optString("pgs", "apd");
-                if ("rpl".equals(pgs)) {
-                    JSONArray rg = result.optJSONArray("rg");
-                    if (rg != null && rg.length() == 2) {
-                        int start = rg.optInt(0);
-                        int end = rg.optInt(1);
-                        if (start >= 0 && end <= resultBuilder.length() && start <= end) {
-                            resultBuilder.replace(start, end, piece.toString());
-                        }
-                    }
-                } else {
-                    resultBuilder.append(piece);
                 }
             }
 
+            // status == 2 表示服务端已发送完最终结果
             if (data.optInt("status", 0) == 2) {
-                String finalText = resultBuilder.toString().trim();
-                if (callback != null) callback.onResult(finalText);
-                stop();
+                deliverResult();
             }
         } catch (Exception e) {
             Log.e("VoiceRecorder", "解析消息出错", e);
         }
     }
 
+    /** 交付最终结果，只执行一次 */
+    private void deliverResult() {
+        if (resultDelivered) return;
+        resultDelivered = true;
+        String finalText = resultBuilder.toString().trim();
+        Log.d("VoiceRecorder", "识别完成：" + finalText);
+        if (callback != null) callback.onResult(finalText);
+        // 主动关闭 WebSocket
+        try { if (webSocket != null) webSocket.close(1000, "done"); } catch (Exception ignored) {}
+        webSocket = null;
+        cleanupAudio();
+        if (forceDeliverRunnable != null) {
+            mainHandler.removeCallbacks(forceDeliverRunnable);
+            forceDeliverRunnable = null;
+        }
+    }
+
+    /** 用户点击停止 / 到时自动停止 */
     public void stop() {
+        if (ended) return;
+        ended = true;
+
+        // 清掉自动超时任务
+        if (timeoutRunnable != null) {
+            mainHandler.removeCallbacks(timeoutRunnable);
+            timeoutRunnable = null;
+        }
+
+        // 立即停止录音
+        recording = false;
+        if (recordThread != null) {
+            try { recordThread.interrupt(); } catch (Exception ignored) {}
+            recordThread = null;
+        }
+        cleanupAudio();
+
+        if (webSocket == null) {
+            // 从来没有连接成功过，直接交付（可能为空）
+            deliverResult();
+            return;
+        }
+
+        // ★★★ 关键修改：发送 status=2 后不立即 close，等结果 ★★★
+        try {
+            JSONObject data = new JSONObject();
+            data.put("status", 2);
+            data.put("format", "audio/L16;rate=16000");
+            data.put("encoding", "raw");
+            data.put("audio", "");
+            JSONObject frame = new JSONObject();
+            frame.put("data", data);
+            webSocket.send(frame.toString());
+        } catch (Exception ignored) {}
+
+        // ★ 保险：3 秒内如果没收到最终结果，也强行交付，防止卡死
+        if (forceDeliverRunnable != null) mainHandler.removeCallbacks(forceDeliverRunnable);
+        forceDeliverRunnable = () -> {
+            if (!resultDelivered) {
+                Log.w("VoiceRecorder", "超时未收到最终结果，强制交付");
+                deliverResult();
+            }
+        };
+        mainHandler.postDelayed(forceDeliverRunnable, 3000);
+    }
+
+    /** 强制清理（不发送 status=2），用于 start 前清场和 destroy */
+    private void hardStop() {
+        ended = true;
+        resultDelivered = true;
         recording = false;
 
         if (timeoutRunnable != null) {
             mainHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;
         }
+        if (forceDeliverRunnable != null) {
+            mainHandler.removeCallbacks(forceDeliverRunnable);
+            forceDeliverRunnable = null;
+        }
 
         if (recordThread != null) {
             try { recordThread.interrupt(); } catch (Exception ignored) {}
             recordThread = null;
         }
+        cleanupAudio();
 
+        if (webSocket != null) {
+            try { webSocket.cancel(); } catch (Exception ignored) {}
+            webSocket = null;
+        }
+    }
+
+    private void cleanupAudio() {
         if (audioRecord != null) {
             try { audioRecord.stop(); } catch (Exception ignored) {}
             try { audioRecord.release(); } catch (Exception ignored) {}
             audioRecord = null;
         }
-
-        if (webSocket != null) {
-            try {
-                JSONObject data = new JSONObject();
-                data.put("status", 2);
-                data.put("format", "audio/L16;rate=16000");
-                data.put("encoding", "raw");
-                data.put("audio", "");
-                JSONObject frame = new JSONObject();
-                frame.put("data", data);
-                webSocket.send(frame.toString());
-            } catch (Exception ignored) {}
-            try { webSocket.close(1000, "done"); } catch (Exception ignored) {}
-            webSocket = null;
-        }
     }
 
     public void destroy() {
-        stop();
+        hardStop();
         try { client.dispatcher().executorService().shutdown(); } catch (Exception ignored) {}
     }
 
