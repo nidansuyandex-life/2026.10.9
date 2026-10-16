@@ -12,6 +12,7 @@ import android.os.Environment;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -78,12 +79,10 @@ public class JsBridge {
         return sb.append("'").toString();
     }
 
-    // ★★★ 保存文件：写完后弹窗，只显示文件名 + 一个"打开下载文件夹"按钮 ★★★
     @JavascriptInterface
     public void saveFile(String content, String filename, String mime) {
         try {
             if (Build.VERSION.SDK_INT >= 29) {
-                // Android 10+ 走 MediaStore，系统自动管理路径
                 ContentValues cv = new ContentValues();
                 cv.put(MediaStore.Downloads.DISPLAY_NAME, filename);
                 cv.put(MediaStore.Downloads.MIME_TYPE,
@@ -96,7 +95,6 @@ public class JsBridge {
                 os.write(content.getBytes(StandardCharsets.UTF_8));
                 os.close();
             } else {
-                // Android 9 及以下，直接写公共下载目录
                 File dir = Environment.getExternalStoragePublicDirectory(
                         Environment.DIRECTORY_DOWNLOADS);
                 if (!dir.exists()) dir.mkdirs();
@@ -105,28 +103,17 @@ public class JsBridge {
                 fos.write(content.getBytes(StandardCharsets.UTF_8));
                 fos.close();
             }
-
             final String fname = filename;
-            act.runOnUiThread(() -> {
-                try {
-                    new AlertDialog.Builder(act)
-                        .setTitle("✓ 文件已保存")
-                        .setMessage("文件名：\n" + fname
-                                + "\n\n已保存到系统的「下载」文件夹。\n\n"
-                                + "查看方式：打开手机自带的「文件管理」APP，\n"
-                                + "切换到「分类」或「下载」视图即可找到。\n\n"
-                                + "（部分手机在「下载」APP里也能看到）")
-                        .setPositiveButton("打开下载文件夹",
-                            (d, w) -> openDownloadFolder())
-                        .setNegativeButton("知道了", null)
-                        .show();
-                } catch (Exception ex) {
-                    Toast.makeText(act, "已保存：" + fname, Toast.LENGTH_LONG).show();
-                }
-            });
-
+            act.runOnUiThread(() -> new AlertDialog.Builder(act)
+                    .setTitle("✓ 文件已保存")
+                    .setMessage("文件名：\n" + fname
+                            + "\n\n已保存到系统「下载」文件夹。\n查看：打开手机自带的「文件管理」APP → 分类 → 下载。")
+                    .setPositiveButton("打开下载文件夹",
+                        (d, w) -> openDownloadFolder())
+                    .setNegativeButton("知道了", null)
+                    .show());
             act.runOnUiThread(() -> webView.evaluateJavascript(
-                    "window.onFileSaved && window.onFileSaved(true," + jsString(filename) + ")", null));
+                    "window.onFileSaved && window.onFileSaved(true," + jsString(fname) + ")", null));
         } catch (Exception e) {
             Log.e("saveFile", "err", e);
             final String msg = e.getMessage();
@@ -138,18 +125,15 @@ public class JsBridge {
         }
     }
 
-    // ★ 打开系统的"下载"文件夹
     @JavascriptInterface
     public void openDownloadFolder() {
         act.runOnUiThread(() -> {
-            // 方式 1：直接跳到系统"下载"应用
             try {
                 Intent i = new Intent("android.intent.action.VIEW_DOWNLOADS");
                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 act.startActivity(i);
                 return;
             } catch (Exception ignored) {}
-            // 方式 2：用 SAF 打开 Download 目录
             try {
                 Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setDataAndType(
@@ -159,7 +143,6 @@ public class JsBridge {
                 act.startActivity(i);
                 return;
             } catch (Exception ignored) {}
-            // 方式 3：打开系统文件管理器
             try {
                 Intent i = new Intent(Intent.ACTION_MAIN);
                 i.addCategory(Intent.CATEGORY_APP_FILES);
@@ -167,9 +150,51 @@ public class JsBridge {
                 act.startActivity(i);
                 return;
             } catch (Exception ignored) {}
-            Toast.makeText(act, "请手动打开「文件管理」APP → 分类 → 下载",
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(act, "请手动打开「文件管理」APP → 分类 → 下载", Toast.LENGTH_LONG).show();
         });
+    }
+
+    // ★★★ 新增 3 个方法：图片保存到 app 私有目录 ★★★
+    @JavascriptInterface
+    public String saveImage(String base64Data, String filename){
+        try {
+            String pure;
+            int comma = base64Data.indexOf(',');
+            if (comma >= 0 && base64Data.startsWith("data:")){
+                pure = base64Data.substring(comma + 1);
+            } else {
+                pure = base64Data;
+            }
+            byte[] bytes = Base64.decode(pure, Base64.DEFAULT);
+
+            File dir = new File(act.getFilesDir(), "clothes");
+            if (!dir.exists()) dir.mkdirs();
+            File f = new File(dir, filename);
+            FileOutputStream fos = new FileOutputStream(f);
+            fos.write(bytes);
+            fos.close();
+            return "clothes/" + filename;
+        } catch (Exception e){
+            Log.e("saveImage", "err", e);
+            return null;
+        }
+    }
+
+    @JavascriptInterface
+    public String getImageUrl(String relativePath){
+        try {
+            File f = new File(act.getFilesDir(), relativePath);
+            if (!f.exists()) return "";
+            return "file://" + f.getAbsolutePath();
+        } catch (Exception e){ return ""; }
+    }
+
+    @JavascriptInterface
+    public void deleteImage(String relativePath){
+        try {
+            File f = new File(act.getFilesDir(), relativePath);
+            if (f.exists()) f.delete();
+        } catch (Exception ignored) {}
     }
 
     @JavascriptInterface
