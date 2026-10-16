@@ -39,9 +39,6 @@ public class TtsHelper implements TextToSpeech.OnInitListener {
                     doSpeak(p.text, p.lang);
                 }
             }
-            Log.d(TAG, "TTS ready");
-        } else {
-            Log.e(TAG, "TTS init failed: " + status);
         }
     }
 
@@ -67,16 +64,11 @@ public class TtsHelper implements TextToSpeech.OnInitListener {
             }
             tts.setSpeechRate(0.95f);
             tts.setPitch(1.0f);
-            String id = "u" + System.currentTimeMillis();
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id);
-        } catch (Exception e) {
-            Log.e(TAG, "speak err", e);
-        }
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + System.currentTimeMillis());
+        } catch (Exception e) { Log.e(TAG, "speak err", e); }
     }
 
-    public void stop() {
-        try { if (tts != null) tts.stop(); } catch (Exception ignored) {}
-    }
+    public void stop() { try { if (tts != null) tts.stop(); } catch (Exception ignored) {} }
 
     public void destroy() {
         try { if (tts != null) { tts.stop(); tts.shutdown(); } } catch (Exception ignored) {}
