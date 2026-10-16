@@ -77,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> request.grant(request.getResources()));
             }
 
-            // ★★★ 核心修复：始终用 */*，不读 accept ★★★
             @Override
             public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb,
                                              FileChooserParams params) {
@@ -86,19 +85,17 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
-                    // ★ 用 */*，让系统显示所有文件
                     i.setType("*/*");
-                    // 附加常用类型，帮文件管理器定位
                     String[] extraTypes = new String[]{
-                        "application/json",   // .json
-                        "text/csv",           // .csv
+                        "application/json",
+                        "text/csv",
                         "text/comma-separated-values",
                         "text/plain",
                         "application/vnd.ms-excel",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         "application/octet-stream"
                     };
                     i.putExtra(Intent.EXTRA_MIME_TYPES, extraTypes);
-                    // ★ 读权限
                     i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     i.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                     startActivityForResult(Intent.createChooser(i, "选择文件"),
@@ -145,7 +142,6 @@ public class MainActivity extends AppCompatActivity {
             if (filePathCallback != null) {
                 Uri[] results = null;
                 if (res == RESULT_OK && data != null) {
-                    // ★ 持久化读权限，避免读文件时权限丢失
                     if (data.getData() != null) {
                         try {
                             getContentResolver().takePersistableUriPermission(
@@ -170,10 +166,17 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(req, res, data);
     }
 
+    /** 返回键：Sheet 开着先关 Sheet */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-            webView.goBack();
+        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null) {
+            webView.evaluateJavascript(
+                "(function(){try{if(document.getElementById('sheet')&&document.getElementById('sheet').classList.contains('open')){if(typeof closeSheet==='function')closeSheet();return 'true';}}catch(e){}return 'false';})()",
+                value -> {
+                    if ("\"true\"".equals(value)) return;
+                    if (webView.canGoBack()) webView.goBack();
+                    else finish();
+                });
             return true;
         }
         return super.onKeyDown(keyCode, event);
