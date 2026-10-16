@@ -79,6 +79,7 @@ public class JsBridge {
         return sb.append("'").toString();
     }
 
+    // ── 文件保存 ──
     @JavascriptInterface
     public void saveFile(String content, String filename, String mime) {
         try {
@@ -154,7 +155,7 @@ public class JsBridge {
         });
     }
 
-    // ★★★ 新增 3 个方法：图片保存到 app 私有目录 ★★★
+    // ── 图片存到 app 私有目录 ──
     @JavascriptInterface
     public String saveImage(String base64Data, String filename){
         try {
