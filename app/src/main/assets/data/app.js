@@ -2,14 +2,12 @@ window.initApp = function() {
   renderTabs();
   render();
   
-  // 底部导航
   document.getElementById('tabbar').addEventListener('click', e => {
     const t = e.target.closest('.tab'); if(!t) return;
     state.tab = t.dataset.tab;
     render();
   });
 
-  // 统一事件监听
   document.getElementById('view').addEventListener('click', async e => {
     const t = e.target.closest('[data-act]'); if(!t) return;
     const act = t.dataset.act;
@@ -17,7 +15,6 @@ window.initApp = function() {
     // 通用
     if (act === 'closeSheet') { closeSheet(); return; }
     if (act === 'exportData') {
-      // 简单导出
       const data = { transactions, skincareLib, skincareRoutine };
       if(window.AndroidFile) AndroidFile.saveFile(JSON.stringify(data), `backup_${todayStr()}.json`, 'application/json');
       return;
@@ -79,16 +76,27 @@ window.initApp = function() {
       return;
     }
 
-    // 语音
+    // 运动
+    if (act === 'startSport') { saveSportSession({ startTs: Date.now(), endTs: null }); render(); return; }
+    if (act === 'endSport') { const s = getSportSessions()[todayStr()]; if(s){ s.endTs = Date.now(); saveSportSession(s); render(); } return; }
+
+    // 其他
     if (act === 'toggleManual') { document.getElementById('textInputArea').style.display = 'block'; return; }
     if (act === 'parseManual') {
       const v = document.getElementById('manualTxInput').value;
       if(v) { state.pendingTx = parseTransactionText(v); state.pendingTx.date = todayStr(); render(); }
       return;
     }
+    if (act === 'del-tx') {
+      const id = Number(t.dataset.delTx);
+      if(confirm('删除这笔记录？')) {
+        transactions = transactions.filter(x => x.id !== id);
+        LS.set('app_h_transactions', transactions); render();
+      }
+      return;
+    }
   });
 
-  // 麦克风事件
   document.getElementById('view').addEventListener('click', e => {
     const mic = e.target.closest('#micBtn');
     if(!mic) return;
@@ -113,23 +121,39 @@ function render() {
   renderTabs();
   const view = document.getElementById('view');
   let html = '';
-  if (state.tab === 'home') {
-    html = `<div class="home-head"><div class="left"><div class="title">今日</div></div></div>
-    <div class="card"><div style="text-align:center;padding:20px;color:var(--sub)">首页内容省略，保留记账/护肤核心</div></div>`;
-  }
+  if (state.tab === 'home') html = homeView();
   else if (state.tab === 'study') html = studyView();
   else if (state.tab === 'life') html = lifeView();
   else if (state.tab === 'me') html = meView();
-  
   view.innerHTML = html;
+}
+
+function homeView() {
+  const now = new Date();
+  const dStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+  return `<div class="home-head">
+    <div class="left"><div class="title">今日</div><div class="suggest">记录每一天的成长</div></div>
+    <div class="right"><div class="date">${dStr}</div></div>
+  </div>
+  <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat" data-act="tabHomeStudy"><div class="v" style="color:var(--brand)">0/10</div><div class="k">今日学习</div></div>
+    <div class="stat"><div class="v" style="color:var(--accent)">—</div><div class="k">训练状态</div></div>
+    <div class="stat"><div class="v" style="color:var(--hot)">¥0</div><div class="k">本月支出</div></div>
+  </div>
+  <div class="sec-title">时间线</div>
+  <div class="home-tl-wrap">
+    <div class="home-tl-item"><span class="check"></span><span class="home-tl-text"><span class="tm">07:00</span>起床</span></div>
+    <div class="home-tl-item"><span class="check"></span><span class="home-tl-text"><span class="tm">12:00</span>午餐</span></div>
+  </div>`;
 }
 
 function meView() {
   return `<div class="hero"><div class="hero-k">我的</div><h1>数据管理</h1></div>
-  <div class="card"><button class="btn-primary" data-act="exportData">📤 导出备份</button></div>`;
+  <div class="card"><button class="btn-primary" data-act="exportData">📤 导出 JSON 备份</button></div>
+  <div class="card" style="border:1px solid #fee2e2;"><button class="btn" style="background:#fee2e2;color:#dc2626;width:100%;" onclick="localStorage.clear();location.reload()">🗑 清空数据</button></div>`;
 }
 
-// 语音控制（占位符，配合原生）
+// 语音占位符
 let _voiceActive = false;
 function startVoiceRecord() {
   _voiceActive = true;
@@ -145,7 +169,3 @@ window.onVoiceResult = function(text) {
   stopVoiceRecord();
   if(text) { state.pendingTx = parseTransactionText(text); state.pendingTx.date = todayStr(); render(); }
 };
-
-function toggleSpeak(text, lang, btn) {
-  if(window.AndroidTTS) AndroidTTS.speak(text, lang);
-}
