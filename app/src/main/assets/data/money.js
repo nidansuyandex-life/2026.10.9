@@ -1,4 +1,3 @@
-// ================== 数据定义 ==================
 window.EXPENSE_CATS = [
   ['餐饮', /(餐饮|早餐|午餐|晚餐|吃|饭|餐|咖啡|奶茶|外卖|水果|零食|饮料|买菜)/],
   ['交通', /(交通|打车|公交|地铁|加油|停车)/],
@@ -26,7 +25,6 @@ window.getCatList = function(type){
 
 window.transactions = LS.get('app_h_transactions', []);
 
-// ================== 核心解析 ==================
 window.parseChineseAmount = function(text){
   if (text == null) return NaN;
   let s = String(text).replace(/快/g,'块').replace(/园/g,'元').replace(/圓/g,'元');
@@ -49,10 +47,9 @@ window.parseTransactionText = function(text){
   return { type, amount, category, note: t, account: LS.get('app_h_lastAccount', '现金') };
 };
 
-// ================== 渲染视图 ==================
 window.moneySection = function(){
   const sub = state.moneySub || 'record';
-  const subs = [{ id:'record', label:'帮我记' },{ id:'book', label:'账本' },{ id:'export', label:'导入/导出' }];
+  const subs = [{ id:'record', label:'帮我记' },{ id:'book', label:'账本' },{ id:'export', label:'导出' }];
   let content = '';
   if (sub === 'record') content = moneyRecordPane();
   else if (sub === 'book') content = moneyBookPane();
@@ -119,7 +116,6 @@ function moneyExportPane(){
   </div>`;
 }
 
-// ================== 记账编辑区 ==================
 window.renderTxEditor = function(){
   const p = state.pendingTx;
   const area = document.getElementById('txEditArea');
@@ -163,23 +159,4 @@ window.renderTxEditor = function(){
       <button class="btn primary" style="flex:2;" data-act="confirmTx">✓ 确认</button>
     </div>
   </div>`;
-};
-
-// ================== 导入/导出逻辑 ==================
-window.exportExcel = function(){
-  if(!transactions.length) { toast('暂无数据'); return; }
-  const escXml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  let html = '<html><head><meta charset="UTF-8"></head><body><table border="1">';
-  html += '<tr><th>日期</th><th>时间</th><th>金额</th><th>类型</th><th>账户</th><th>分类</th><th>备注</th></tr>';
-  transactions.forEach(t => { html += `<tr><td>${escXml(t.date)}</td><td>${escXml(normalizeTimeStr(t.time))}</td><td>${t.amount}</td><td>${t.type==='income'?'收入':'支出'}</td><td>${escXml(t.account||'现金')}</td><td>${escXml(t.category)}</td><td>${escXml(t.note)}</td></tr>`; });
-  html += '</table></body></html>';
-  if(window.AndroidFile) AndroidFile.saveFile(html, `账单_${todayStr()}.xls`, 'application/vnd.ms-excel');
-};
-
-window.exportCsv = function(){
-  if(!transactions.length) { toast('暂无数据'); return; }
-  const rows = [['日期','时间','金额','类型','账户','分类','备注']];
-  transactions.forEach(t => rows.push([t.date, t.time, t.amount, t.type==='income'?'收入':'支出', t.account||'现金', t.category, t.note]));
-  const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
-  if(window.AndroidFile) AndroidFile.saveFile('\ufeff'+csv, `账单_${todayStr()}.csv`, 'text/csv');
 };
