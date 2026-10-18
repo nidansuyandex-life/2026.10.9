@@ -20,7 +20,6 @@ window.lifeView = function(){
   <div>${content}</div>`;
 };
 
-// ====== 运动 ======
 function sportSection(){
   const sess = getSportSessions()[todayStr()];
   let html = `<div class="card" style="background:linear-gradient(135deg,var(--hot),var(--hot2));color:#fff;border:0;"><div style="font-size:19px;font-weight:750;">今日运动</div></div>`;
@@ -36,8 +35,6 @@ function sportSection(){
   return html;
 }
 
-// ====== 日历 ======
 function calendarSection(){
-  // 简化版日历
-  return `<div class="card"><div style="text-align:center;padding:40px;color:var(--sub);">日历功能模块(保留基础展示)</div></div>`;
+  return `<div class="card"><div style="text-align:center;padding:40px;color:var(--sub);">日历功能展示区</div></div>`;
 }
