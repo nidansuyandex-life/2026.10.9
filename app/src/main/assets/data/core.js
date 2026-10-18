@@ -4,6 +4,7 @@ window.WEEK_CN = '日一二三四五六';
 window.bjDate = function(){ return new Date(Date.now() + 8*3600*1000); };
 window.todayStr = function(){ const d = bjDate(); return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); };
 window.prevDayStr = function(){ const d = new Date(Date.now()-86400000+8*3600*1000); return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); };
+window.localDateStr = function(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 window.pad = function(n){ return String(n).padStart(2,'0'); };
 window.fmtTime = function(d){ return pad(d.getHours())+':'+pad(d.getMinutes()); };
 window.esc = function(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); };
@@ -38,16 +39,9 @@ window.normalizeTimeStr = function(t){
   return s;
 };
 
-window.getStorageSize = function(){
-  let total = 0;
-  try { Object.keys(localStorage).forEach(k => { const v = localStorage.getItem(k); if (v != null) total += k.length + v.length; }); } catch(e){}
-  return total;
-};
-
 window.state = {
   tab:'home', lifeSub:'money', moneySub:'record', careSub:'routine',
-  pendingTx: null,
-  _pendingImport: null
+  pendingTx: null, _pendingImport: null
 };
 
 window.openSheet = function(html){
@@ -59,4 +53,8 @@ window.closeSheet = function(){
   const sheet = document.getElementById('sheet');
   sheet.classList.remove('open');
   setTimeout(() => { if (!sheet.classList.contains('open')) sheet.innerHTML = ''; }, 320);
+};
+
+window.toggleSpeak = function(text, lang, btn) {
+  if(window.AndroidTTS && AndroidTTS.speak) AndroidTTS.speak(text, lang || 'zh-CN');
 };
